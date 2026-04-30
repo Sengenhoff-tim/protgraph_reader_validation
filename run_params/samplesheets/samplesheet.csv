@@ -1,0 +1,5 @@
+input_file,query_file,max_vars,run_prefix
+run_params/entries/entries1-2.csv,run_params/queries/query.csv,3,1-2
+run_params/entries/entries2-3.csv,run_params/queries/query.csv,3,2-3
+run_params/entries/entries3-4.csv,run_params/queries/query.csv,3,3-4
+run_params/entries/entries4-5.csv,run_params/queries/query.csv,3,4-5

@@ -1,0 +1,1 @@
+std::iter::Map<DeserializeRecordsIter<'_, File, Interval>, {closure@src/protgraph_io/read_query_csv.rs:14:14: 14:22}>
