@@ -104,7 +104,7 @@ process READERRUST {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path("sorted_${prefix}_rust_out.fasta"),
+        path("${prefix}_rust_out.fasta"),
         val(max_vars), 
         val(prefix)
     )
@@ -116,8 +116,6 @@ process READERRUST {
         -q ${rust_queries_csv} \\
         -x ${max_vars} \\
         -o ${prefix}_rust_out.fasta
-        
-    sort -t '>' -k2 ${prefix}_rust_out.fasta > sorted_${prefix}_rust_out.fasta
     """
 }
 
@@ -133,7 +131,7 @@ process READERCPP {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path(sorted_rust),
+        path(rust),
         val(max_vars), 
         val(prefix)
     )
@@ -147,8 +145,8 @@ process READERCPP {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path(sorted_rust),
-        path("sorted_${prefix}_cpp_out.fasta"),
+        path(rust),
+        path("${prefix}_cpp_out.fasta"),
         val(max_vars), 
         val(prefix)
     )
@@ -161,8 +159,6 @@ process READERCPP {
         1 \\
         ${prefix}_cpp_out.fasta \\
         ${cpp_limits_csv}
-
-    sort -t '>' -k2 ${prefix}_cpp_out.fasta > sorted_${prefix}_cpp_out.fasta
     """
 }
 
@@ -181,8 +177,8 @@ process DIFF {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path(sorted_rust),
-        path(sorted_cpp),
+        path(rust),
+        path(cpp),
         val(max_vars), 
         val(prefix)
     )
@@ -196,8 +192,8 @@ process DIFF {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path(sorted_rust),
-        path(sorted_cpp),
+        path("sorted_${rust}"),
+        path("sorted_${cpp}"),
         path("${prefix}_diff.txt"),
         val(max_vars), 
         val(prefix)
@@ -205,7 +201,9 @@ process DIFF {
 
     script:
     """
-    diff ${sorted_rust} ${sorted_cpp} > ${prefix}_diff.txt || true
+    sort -t '>' -k2 ${rust} > sorted_${rust}
+    sort -t '>' -k2 ${cpp} > sorted_${cpp}
+    diff sorted_${rust} sorted_${cpp} > ${prefix}_diff.txt || true
     """
 }
 
