@@ -48,7 +48,7 @@ fn process_graphs(
             Ok(protein_graph) => { 
                 let protein_graph = std::sync::Arc::new(protein_graph);
                 // Using compact format
-                protein_graph.write_to_file_compact("intervals_compact_rust_.txt")?;
+                //protein_graph.write_to_file_compact("intervals_compact_rust_.txt")?;
                 process_single_graph(protein_graph, &intervals, max_vars, output_path.clone())?; 
             }
             Err(e) => {
@@ -68,8 +68,8 @@ fn process_single_graph(
     output_path: PathBuf, 
 ) -> anyhow::Result<()> { 
     let (tx, rx): (
-        Sender<Vec<Vec<u32>>>, 
-        Receiver<Vec<Vec<u32>>>
+        Sender<Vec<Vec<(u32, Option<usize>)>>>, 
+        Receiver<Vec<Vec<(u32, Option<usize>)>>>
     ) = bounded(128); 
     let graph_for_writer = Arc::clone(&graph); 
     let writer_handle = thread::spawn(move || { 
@@ -167,15 +167,15 @@ fn spawn_producers(
     graph: Arc<ProteinGraph>,
     intervals: &[Interval],
     max_vars: u8,
-    tx: Sender<Vec<Vec<u32>>>,
+    tx: Sender<Vec<Vec<(u32, Option<usize>)>>>,
 ) -> Result<()> {
     intervals.par_iter().for_each(|interval| {
         let result: Result<()> = (|| {
             let paths = graph
-                .traverse_varcount(interval, max_vars)
+                .traverse_and_build_traces(interval, max_vars)
                 .map_err(|e| anyhow!("traversal failed: {e}"))?;
 
-            tx.send(paths)
+                tx.send(paths)
                 .map_err(|e| anyhow!("channel send failed: {e}"))?;
 
             Ok(())

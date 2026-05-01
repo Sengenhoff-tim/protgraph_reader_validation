@@ -1,4 +1,4 @@
-params.samplesheet = "${workflow.projectDir}/run_params/samplesheets/samplesheet30.csv"
+params.samplesheet = "${workflow.projectDir}/run_params/samplesheets/samplesheet15.csv"
 
 process BUILDINPUT {
 
@@ -66,6 +66,7 @@ process BUILDGRAPH {
     script:
     """
     protgraph \\
+        -elpcsr -elpcsr_pdbs 32 \\
         -elbpcsr -elbpcsr_pdbs 32 \\
         --pep_miscleavages 3 \\
         -nm \\

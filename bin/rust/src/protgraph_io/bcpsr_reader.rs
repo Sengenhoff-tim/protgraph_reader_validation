@@ -2,7 +2,7 @@ use std::io::{BufRead, ErrorKind};
 use byteorder::{BigEndian, ReadBytesExt};
 use anyhow::{Result, anyhow};
 
-use crate::protgraph_types::{ProteinGraph, StringTable, Pdbs, Interval};//, Raw64};
+use crate::protgraph_types::{ProteinGraph, StringTable, Pdbs, Interval};
 
 // Reader for the bpcsr binary files produced by ProtGraph. Implementation closely resembles the original for correctness.
 // The max vars vector is never build as per the requirements.
@@ -36,7 +36,6 @@ impl<R: BufRead> Iterator for ProteinGraphReader<R> {
                 };
             }
         };
-
 
         match read_single_graph(num_acc, &mut self.rdr) {
             Ok(pg) => Some(Ok(pg)),
@@ -86,21 +85,12 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Protein
         let iso_position = read_u16_vec(reader, n_nodes)?;
 
         // Mono weight (MW): n_nodes i64 BE
-         
         let mut mono_weight = Vec::with_capacity(n_nodes);
         for _ in 0..n_nodes {
             mono_weight.push(reader.read_i64::<BigEndian>()?);
         }
-        /*
-        let mut mono_weight = Vec::with_capacity(n_nodes);
 
-        for _ in 0..n_nodes {
-            let w = reader.read_u64::<BigEndian>()?;
-            mono_weight.push(Raw64(w));
-        }
-        */
-
-                // Cleaved (CL): n_edges bytes -> bool
+        // Cleaved (CL): n_edges bytes -> bool
         let mut cleaved = vec![false; n_edges];
         for i in 0..n_edges {
             cleaved[i] = reader.read_u8()? != 0;
@@ -116,9 +106,6 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Protein
 
 
         Ok(ProteinGraph {
-            num_n: n_nodes as u32,
-            //num_e: n_edges as u32,
-            //num_pdbs: n_pdbs as u32,
             accessions,
             nodes: nodes.into_boxed_slice(),
             edges: edges.into_boxed_slice(),

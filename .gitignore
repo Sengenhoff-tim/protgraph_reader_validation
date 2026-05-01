@@ -2,7 +2,7 @@
 /.nextflow.log*
 results/
 work/
-/target/
+bin/rust/target/
 Cargo.lock
 __pycache__/
 *.py[cod]

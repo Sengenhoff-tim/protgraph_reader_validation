@@ -1,7 +1,5 @@
 use serde::Deserialize;
 
-//use crate::protgraph_types::Raw64;
-
 // A helper struct for intervals of protein weights
 
 #[derive(Clone, Debug, Deserialize)]
@@ -15,19 +13,3 @@ impl Interval {
         self.lower <= other.upper && self.upper >= other.lower
     }
 }
-
-/* 
-#[derive(Clone, Debug)]
-pub struct Interval {
-    pub lower: Raw64,
-    pub upper: Raw64,
-}
-
-impl Interval {
-    #[inline]
-    pub fn overlaps(&self, other: &Interval) -> bool {
-        self.lower.as_i64() <= other.upper.as_i64()
-            && self.upper.as_i64() >= other.lower.as_i64()
-    }
-}
-    */

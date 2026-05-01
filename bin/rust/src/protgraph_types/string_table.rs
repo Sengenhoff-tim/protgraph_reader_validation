@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::str;
+use anyhow::{Result, anyhow};
 
 // A continuous vector of character bytes, resembling strings with dedublication,
 // mirroring the original implementation. Used in the protein graph struct.
@@ -51,11 +52,11 @@ impl StringTable {
         Self { buffer, mapping }
     }
 
-    pub fn get_str(&self, idx: usize) -> anyhow::Result<&str> {
+    pub fn get_str(&self, idx: usize) -> Result<&str> {
         let r = &self.mapping[idx];
         let start = r.start as usize;
         let len = r.len as usize;
         let bytes = &self.buffer[start..start + len];
-        str::from_utf8(bytes).map_err(|e| anyhow::anyhow!("Invalid UTF-8 in StringTable at index {}: {}", idx, e))
+        str::from_utf8(bytes).map_err(|e| anyhow!("Invalid UTF-8 in StringTable at index {}: {}", idx, e))
     }
 }

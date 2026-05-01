@@ -9,6 +9,3 @@ pub use string_table::{StringTable};
 
 pub mod interval;
 pub use interval::{Interval};
-
-//pub mod raw64;
-//pub use raw64::Raw64;

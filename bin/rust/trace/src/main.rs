@@ -98,75 +98,6 @@ fn process_single_graph(
     
     Ok(()) 
 }
-/*
-fn process_single_graph(
-    graph: Arc<ProteinGraph>,
-    intervals: &[Interval],
-    max_vars: u8,
-    output_path: PathBuf,
-) -> anyhow::Result<()> {
-    let (
-        tx, 
-        rx
-    ): (
-        Sender<Vec<u32>>,
-        Receiver<Vec<u32>>
-    ) = bounded(128);
-
-    let graph_for_writer = Arc::clone(&graph);
-
-    let writer_handle = thread::spawn(move || {
-        fasta_writer_thread(rx, output_path, graph_for_writer)
-    });
-
-    spawn_producers(graph, intervals, max_vars, tx)?;
-
-    writer_handle.join().map_err(|_| anyhow!("Writer thread panicked"))??;
-
-    Ok(())
-}
-fn spawn_producers(
-    graph: Arc<ProteinGraph>,
-    intervals: &[Interval],
-    max_vars: u8,
-    tx: Sender<Vec<u32>>,
-) -> Result<()> {
-    intervals.par_iter().for_each(|interval| {
-        let result: Result<()> = (|| {
-            graph.traverse_varcount_streaming(interval, max_vars, |path| {
-                tx.send(path.to_vec())
-                    .map_err(|e| anyhow!("send failed: {}", e))?;
-                Ok(())
-            })?;
-            Ok(())
-        })();
-
-        if let Err(e) = result {
-            eprintln!("interval {:?} failed: {:?}", interval, e);
-        }
-    });
-
-    drop(tx);
-    Ok(())
-}
-
-fn spawn_producers(
-    graph: Arc<ProteinGraph>,
-    intervals: &[Interval], 
-    max_vars: u8, 
-    tx: Sender<Vec<Vec<u32>>>, 
-) -> anyhow::Result<()> {
-    intervals.par_iter().try_for_each(|interval| {
-        let paths = graph.traverse_varcount(interval, max_vars)?; 
-        tx.send(paths).map_err(|e| anyhow!(e))?; 
-        Ok::<(), Error>(()) 
-    })?; 
-
-    drop(tx); 
-    
-    Ok(()) 
-}
-*/
 
 fn spawn_producers(
     graph: Arc<ProteinGraph>,
@@ -206,18 +137,6 @@ fn main() -> Result<()> {
     
     let intervals = read_query_csv(&cli.queries, WEIGHT_FACTOR)?;
 
-let file = File::create("intervals_out.csv")?;
-let mut writer = BufWriter::new(file);
-
-// Optional header
-writeln!(writer, "lower,upper")?;
-
-for iv in &intervals {
-    writeln!(writer, "{},{}", iv.lower, iv.upper)?;
-}
-    /*
-    write_dummy_fasta("dummy.fasta".into())?;
-    */
     process_graphs(cli.graphs, cli.output, intervals, cli.max_vars, trace)?;
     Ok(())
 }
