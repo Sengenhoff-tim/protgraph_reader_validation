@@ -2,7 +2,7 @@ use std::io::{BufRead, ErrorKind};
 use byteorder::{BigEndian, ReadBytesExt};
 use anyhow::{Result, anyhow};
 
-use crate::protgraph_types::{ProteinGraph, StringTable, Pdbs, Interval};
+use crate::protgraph_types::{Interval, Pdbs, ProteinGraph, StringTable, graph::{MetaData, TraversalData}};
 
 // Reader for the bpcsr binary files produced by ProtGraph. Implementation closely resembles the original for correctness.
 // The max vars vector is never build as per the requirements.
@@ -106,18 +106,22 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Protein
 
 
         Ok(ProteinGraph {
-            accessions,
-            nodes: nodes.into_boxed_slice(),
-            edges: edges.into_boxed_slice(),
-            sequences,
-            position: position.into_boxed_slice(),
-            iso_index: iso_index.into_boxed_slice(),
-            iso_position: iso_position.into_boxed_slice(),
-            mono_weight: mono_weight.into_boxed_slice(),
-            cleaved,
-            qualifiers,
-            variant_count: variant_count.into_boxed_slice(),
-            pdbs,
+            traversal_data: TraversalData{
+                nodes: nodes.into_boxed_slice(),
+                edges: edges.into_boxed_slice(),
+                mono_weight: mono_weight.into_boxed_slice(),
+                variant_count: variant_count.into_boxed_slice(),
+                pdbs,
+            },
+            meta_data: MetaData{
+                accessions,
+                sequences,
+                position: position.into_boxed_slice(),
+                iso_index: iso_index.into_boxed_slice(),
+                iso_position: iso_position.into_boxed_slice(),
+                cleaved,
+                qualifiers,
+            }
         })
     }
 
@@ -133,15 +137,19 @@ fn build_from_reader<R: BufRead>(reader: &mut R, count: usize) -> Result<StringT
 
 
 fn read_u8_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u8>> {
-    read_be_vec(reader, count, 1, |b| u8::from_be_bytes(b.try_into().unwrap()))
+    read_be_vec(reader, count, 1, |b| b[0])
 }
 
 fn read_u16_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u16>> {
-    read_be_vec(reader, count, 2, |b| u16::from_be_bytes(b.try_into().unwrap()))
+    read_be_vec(reader, count, 2, |b| {
+        u16::from_be_bytes([b[0], b[1]])
+    })
 }
 
 fn read_u32_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u32>> {
-    read_be_vec(reader, count, 4, |b| u32::from_be_bytes(b.try_into().unwrap()))
+    read_be_vec(reader, count, 4, |b| {
+        u32::from_be_bytes([b[0], b[1], b[2], b[3]])
+    })
 }
 
 fn read_be_vec<R: BufRead, T>(
@@ -150,7 +158,10 @@ fn read_be_vec<R: BufRead, T>(
     byte_len: usize,
     parse: fn(&[u8]) -> T,
 ) -> Result<Vec<T>> {
-    let mut buf = vec![0u8; count * byte_len];
+    let total = count
+        .checked_mul(byte_len)
+        .ok_or_else(|| anyhow::anyhow!("overflow in allocation size"))?;
+    let mut buf = vec![0u8; total];
     reader.read_exact(&mut buf)?;
 
     let mut out = Vec::with_capacity(count);
@@ -180,11 +191,9 @@ pub fn read_pdbs<R: BufRead>(
         let mut node_vec = Vec::with_capacity(n_pdbs);
 
         for _slot in 0..n_pdbs {
-            // Read as u64 to match C++ behavior
             let raw_lower = reader.read_u64::<BigEndian>()?;
             let raw_upper = reader.read_u64::<BigEndian>()?;
 
-            // Map sentinel (uint64_t(-1)) -> i64::MAX
             let lower = if raw_lower == u64::MAX {
                 i64::MAX
             } else {
@@ -197,11 +206,22 @@ pub fn read_pdbs<R: BufRead>(
                 raw_upper as i64
             };
 
-            // Only keep valid intervals
-            if lower != i64::MAX {
-                node_vec.push(Interval { lower, upper });
+            // skip invalid
+            if lower == i64::MAX {
+                continue;
             }
+
+            // optional validation (can be removed for max speed)
+            if upper < lower {
+                // either skip or fix depending on your semantics
+                continue;
+            }
+
+            node_vec.push(Interval { lower, upper });
         }
+
+        // IMPORTANT: sort for early-exit scan optimization
+        node_vec.sort_unstable_by_key(|iv| iv.lower);
 
         node_lists.push(node_vec);
     }

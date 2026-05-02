@@ -68,8 +68,8 @@ fn process_single_graph(
     output_path: PathBuf, 
 ) -> anyhow::Result<()> { 
     let (tx, rx): (
-        Sender<Vec<Vec<(u32, Option<usize>)>>>, 
-        Receiver<Vec<Vec<(u32, Option<usize>)>>>
+        Sender<Vec<Vec<(u32, u32)>>>, 
+        Receiver<Vec<Vec<(u32, u32)>>>
     ) = bounded(128); 
     let graph_for_writer = Arc::clone(&graph); 
     let writer_handle = thread::spawn(move || { 
@@ -167,12 +167,12 @@ fn spawn_producers(
     graph: Arc<ProteinGraph>,
     intervals: &[Interval],
     max_vars: u8,
-    tx: Sender<Vec<Vec<(u32, Option<usize>)>>>,
+    tx: Sender<Vec<Vec<(u32, u32)>>>,
 ) -> Result<()> {
     intervals.par_iter().for_each(|interval| {
         let result: Result<()> = (|| {
             let paths = graph
-                .traverse_and_build_traces(interval, max_vars)
+                .traversal_data.traverse_and_build_traces(interval, max_vars)
                 .map_err(|e| anyhow!("traversal failed: {e}"))?;
 
                 tx.send(paths)

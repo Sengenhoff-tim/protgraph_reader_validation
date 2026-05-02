@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 use crate::protgraph_types::{Interval};
 
-
 pub fn read_query_csv(path: &PathBuf, weight_factor: i64) -> Result<Vec<Interval>> {
     let file = File::open(path)?;
     let mut reader = Reader::from_reader(file);

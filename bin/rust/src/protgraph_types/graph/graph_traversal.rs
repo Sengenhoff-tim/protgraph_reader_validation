@@ -1,144 +1,134 @@
 use::anyhow::Result;
-use crate::protgraph_types::{ProteinGraph, Interval};
+use std::mem::take;
+use crate::protgraph_types::{Interval, TraversalState, Pdbs};
 
-type StateId = usize;
-
-
-#[derive(Debug, Clone)]
-struct State {
-    node: u32,
-    parent: Option<StateId>,
-    edge_id: Option<usize>,
-    tv: i64,
-    var: u8,
+pub struct TraversalData {
+    pub nodes: Box<[u32]>,
+    pub edges: Box<[u32]>,
+    pub mono_weight: Box<[i64]>,
+    pub variant_count: Box<[u8]>,
+    pub pdbs: Pdbs,
 }
 
-pub struct Traversal {
-    arena: Vec<State>,
-    states_at_node: Vec<Vec<StateId>>,
-}
-
-impl Traversal {
-    pub fn reconstruct_trace(
-        &self,
-        mut state_id: StateId,
-    ) -> Result<Vec<(u32, Option<usize>)>> {
-        let mut trace = Vec::new();
-
-        while let Some(state) = self.arena.get(state_id) {
-            trace.push((state.node, state.edge_id));
-
-            match state.parent {
-                Some(p) => state_id = p,
-                None => break,
-            }
-        }
-
-        trace.reverse();
-        Ok(trace)
+#[inline(always)]
+fn build_edge_ranges(
+    nodes: &[u32],
+    edge_ranges: &mut Vec<(usize, usize)>,
+) {
+    for i in 0..nodes.len() {
+        let begin = if i == 0 { 0 } else { nodes[i - 1] as usize };
+        let end = nodes[i] as usize;
+        edge_ranges.push((begin, end));
     }
 }
 
-impl ProteinGraph {
+impl TraversalData {
     pub fn traverse_varcount(
         &self,
         interval: &Interval,
         max_vars: u8,
-    ) -> Result<Traversal> {
-let mut arena: Vec<State> = Vec::new();
-let mut states_at_node: Vec<Vec<StateId>> = vec![Vec::new(); self.nodes.len() as usize];
+    ) -> Result<TraversalState> {
+        let mut edge_ranges = Vec::with_capacity(self.nodes.len());
 
-// initial state at node 0
-arena.push(State {
-    node: 0,
-    parent: None,
-    edge_id: None,
-    tv: 0,
-    var: 0,
-});
+        let mut traversal_state = TraversalState::new(self.nodes.len(), max_vars);
+        
+        build_edge_ranges(&self.nodes, &mut edge_ranges);
 
-states_at_node[0].push(0);
-
-for i in 0..self.nodes.len() as usize - 1 {
-    if states_at_node[i].is_empty() {
-        continue;
-    }
-    
-    let (e_b, e_e) = if i == 0 {
-        (0 as usize, self.nodes[0] as usize)
-    } else {
-        (self.nodes[i - 1] as usize, self.nodes[i] as usize)
-    };
-
-    let current_states = states_at_node[i].clone();  // Clone here
-
-    for state_id in current_states {
-        for k in e_b..e_e {
-            let target_node = self.edges[k] as u32;
-
-            let (achieved, new_var) = {
-                let state = &arena[state_id];
-                (
-                    state.tv + self.mono_weight[target_node as usize],
-                    state.var + self.variant_count[k],
-                )
-            };
-            
-            let shifted = Interval {
-                lower: interval.lower - achieved,
-                upper: interval.upper - achieved,
-            };
-
-            let overlap = self.has_overlapping_interval(
-                target_node as usize,
-                &shifted,
-            )?;
-
-            if new_var > max_vars || !overlap {
+        for node_idx in 0..self.nodes.len() - 1 {
+            if traversal_state.states_at_node[node_idx].is_empty() {
                 continue;
             }
 
-            let new_state_id = arena.len();
+            let (edge_begin, edge_end) = edge_ranges[node_idx];
 
-            arena.push(State {
-                node: target_node,
-                parent: Some(state_id),
-                edge_id: Some(k),
-                tv: achieved,
-                var: new_var,
-            });
+            let current_states = take(&mut traversal_state.states_at_node[node_idx]);
 
-            states_at_node[target_node as usize].push(new_state_id);
+            for state_id in current_states {
+                let state = &traversal_state.arena[state_id];
+                let tv = state.tv;
+                let var = state.var;
+
+                for edge_idx in edge_begin..edge_end {
+                    let new_var = var + self.variant_count[edge_idx];
+                    
+                    if new_var > max_vars {
+                        continue;
+                    }
+
+                    let target_node = self.edges[edge_idx] as usize;
+
+                    let achieved = tv + self.mono_weight[target_node];
+
+                    let lower = interval.lower - achieved;
+                    let upper = interval.upper - achieved;
+                    
+                    if !self.has_overlapping_interval(target_node, lower, upper) {
+                        continue;
+                    }
+                    traversal_state.push_state(
+                        self.edges[edge_idx],
+                        state_id,
+                        edge_idx as u32,
+                        achieved,
+                        new_var,
+                        target_node,
+                    );
+                }           
+            }
         }
+        Ok(traversal_state)
     }
-    
-    states_at_node[i].clear();
-}
-
-            Ok(Traversal {
-                arena,
-                states_at_node,
-            })
-        }
-
+        
     pub fn traverse_and_build_traces(
         &self,
         interval: &Interval,
         max_vars: u8,
-    ) -> Result<Vec<Vec<(u32, Option<usize>)>>> {
-        let traversal = self.traverse_varcount(interval, max_vars)?;
+    ) -> Result<Vec<Vec<(u32, u32)>>> {
+        let traversal_state = self.traverse_varcount(interval, max_vars)?;
 
         let final_states =
-            &traversal.states_at_node[(self.nodes.len() - 1) as usize];
+            &traversal_state.states_at_node[(self.nodes.len() - 1) as usize];
 
         let mut traces = Vec::new();
 
         for &state_id in final_states {
             traces.push(
-                traversal.reconstruct_trace(state_id)?
+                traversal_state.reconstruct_trace(state_id)
             );
         }
 
         Ok(traces)
     }
+
+
+#[inline]
+pub fn has_overlapping_interval(
+    &self,
+    node: usize,
+    lower: i64,
+    upper: i64,
+) -> bool {
+    let slice = match self.pdbs.get_node_intervals(node) {
+        Some(s) => s,
+        None => return false, // or debug_assert! depending on invariants
+    };
+
+    let mut i = 0;
+    while i < slice.len() {
+        let iv = unsafe { slice.get_unchecked(i) };
+
+        if iv.lower > upper {
+            break;
+        }
+
+        if iv.lower <= upper && iv.upper >= lower {
+            return true;
+        }
+
+        i += 1;
+    }
+
+    false
+}
+
 }

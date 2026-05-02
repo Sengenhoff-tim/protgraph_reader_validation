@@ -5,10 +5,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use crossbeam_channel::Receiver;
 
-use crate::protgraph_types::ProteinGraph;
+use crate::protgraph_types::{ProteinGraph};
 
 pub fn fasta_writer_thread( 
-    rx: Receiver<Vec<Vec<(u32, Option<usize>)>>>, 
+    rx: Receiver<Vec<Vec<(u32, u32)>>>, 
     output_path: PathBuf, 
     graph: Arc<ProteinGraph>, 
 ) -> Result<()> { 
@@ -32,7 +32,7 @@ pub fn fasta_writer_thread(
     
     for batch in rx { 
         for path in batch { 
-            graph.write_fragment(&mut writer, &path)?; 
+            graph.meta_data.write_fragment(&mut writer, &path)?; 
         } 
     } 
     

@@ -1,42 +1,28 @@
-use std::{i64};
 use std::io::{Write};
 use anyhow::{Result};
 
-use crate::{protgraph_types::{Pdbs, StringTable, Interval}};
+use crate::{protgraph_types::{StringTable}};
 
 // Protein graph struct and utility functions.
 // Compared to the original implementation, the max vars vector has been removed as per the requirements.
 
-pub struct ProteinGraph {
+
+pub struct MetaData {
     pub accessions: Vec<String>,
-    pub nodes: Box<[u32]>,
-    pub edges: Box<[u32]>,
-    pub sequences: StringTable,
     pub position: Box<[u16]>,
-    pub iso_index: Box<[u8]>,
     pub iso_position: Box<[u16]>,
-    pub mono_weight: Box<[i64]>,
+    pub iso_index: Box<[u8]>,
     pub cleaved: Vec<bool>,
     pub qualifiers: StringTable,
-    pub variant_count: Box<[u8]>,
-    pub pdbs: Pdbs,
+    pub sequences: StringTable,
 }
-/* 
-pub struct Structure {
-    pub nodes: Box<[u32]>,
-    pub edges: Box<[u32]>,
-    pub mono_weight: Box<[i64]>,
-    pub variant_count: Box<[u8]>,
-    pub pdbs: Pdbs,
-}
-*/
 
-impl ProteinGraph {
+impl MetaData {
     
 pub fn write_fragment<W: Write>(
     &self,
     out: &mut W,
-    trace: &[(u32, Option<usize>)],
+    trace: &[(u32, u32)],
 ) -> Result<()> {
     let len = trace.len();
     if len < 2 {
@@ -58,10 +44,10 @@ pub fn write_fragment<W: Write>(
     let mut last_seq_node: Option<(usize, usize)> = None; // (node_idx, seq_len)
 
     // -------- single forward pass --------
-    for &(node, edge_opt) in &trace[1..len - 1] {
+    for &(node, edge) in &trace[1..len - 1] {
         let node_idx = node as usize;
 
-        let seq = self.sequences.get_str(node_idx)?;
+        let seq = self.sequences.get_str(node_idx);
         if !seq.is_empty() {
             let seq_len = seq.len();
 
@@ -89,27 +75,25 @@ pub fn write_fragment<W: Write>(
 
         iso_idx = iso_idx.max(self.iso_index[node_idx]);
 
-        if let Some(edge) = edge_opt {
-            if self.cleaved[edge] {
+        if edge != u32::MAX {
+            if self.cleaved[edge as usize] {
                 mssclvg += 1;
             }
 
-            if let Ok(q) = self.qualifiers.get_str(edge) {
-                if !q.is_empty() {
-                    qualifiers.push_str(q);
-                    qualifiers.push(',');
-                }
+            let q = self.qualifiers.get_str(edge as usize);
+            if !q.is_empty() {
+                qualifiers.push_str(q);
+                qualifiers.push(',');
             }
         }
     }
 
     // -------- final edge --------
-    if let Some(edge) = trace[len - 1].1 {
-        if let Ok(q) = self.qualifiers.get_str(edge) {
-            if !q.is_empty() {
-                qualifiers.push_str(q);
-                qualifiers.push(',');
-            }
+    if trace[len - 1].1 != u32::MAX {
+        let q = self.qualifiers.get_str(trace[len - 1].1 as usize);
+        if !q.is_empty() {
+            qualifiers.push_str(q);
+            qualifiers.push(',');
         }
     }
 
@@ -147,16 +131,4 @@ pub fn write_fragment<W: Write>(
 
     Ok(())
 }
-
-pub fn has_overlapping_interval(
-        &self,
-        node: usize,
-        interval: &Interval,
-    ) -> anyhow::Result<bool> {
-        let slice = self.pdbs
-            .get_node_intervals(node)
-            .ok_or_else(|| anyhow::anyhow!("invalid node index: {}", node))?;
-
-        Ok(slice.iter().any(|iv| iv.overlaps(interval)))
-    }
 }
