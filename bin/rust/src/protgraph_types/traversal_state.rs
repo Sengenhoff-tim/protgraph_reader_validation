@@ -1,5 +1,5 @@
 // bookkeeping for traversal. parent and edge use MAX as sentiel
-// IMPORTANT: reference implementation u32::MAX as valid value
+// IMPORTANT: in reference implementation, u32::MAX is a valid value
 
 type StateId = usize;
 
@@ -37,6 +37,7 @@ impl TraversalState {
             states_at_node,
         }
     }
+
     pub fn reconstruct_trace(
         &self,
         mut state_id: StateId,

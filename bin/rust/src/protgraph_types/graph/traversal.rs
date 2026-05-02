@@ -1,5 +1,6 @@
-use::anyhow::Result;
-use std::mem::take;
+use::anyhow::{Result, anyhow};
+use crossbeam_channel::Sender;
+use std::mem::{take};
 use crate::protgraph_types::{Interval, TraversalState, Pdbs};
 
 pub struct TraversalData {
@@ -78,26 +79,26 @@ impl TraversalData {
         }
         Ok(traversal_state)
     }
-        
-    pub fn traverse_and_build_traces(
+
+    pub fn traverse_and_stream_traces(
         &self,
         interval: &Interval,
         max_vars: u8,
-    ) -> Result<Vec<Vec<(u32, u32)>>> {
-        let traversal_state = self.traverse_varcount(interval, max_vars)?;
+        tx: &Sender<Vec<(u32, u32)>>
+    ) -> anyhow::Result<()> {
+        let traversal_state = &self.traverse_varcount(interval, max_vars)?;
 
         let final_states =
             &traversal_state.states_at_node[(self.nodes.len() - 1) as usize];
 
-        let mut traces = Vec::new();
-
         for &state_id in final_states {
-            traces.push(
-                traversal_state.reconstruct_trace(state_id)
-            );
+            let trace = traversal_state.reconstruct_trace(state_id);
+
+            tx.send(trace)
+                .map_err(|e| anyhow!("channel send failed: {e}"))?;
         }
 
-        Ok(traces)
+        Ok(())
     }
 
 

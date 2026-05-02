@@ -115,7 +115,8 @@ process READERRUST {
         -g ${database_bpcsr} \\
         -q ${rust_queries_csv} \\
         -x ${max_vars} \\
-        -o ${prefix}_rust_out.fasta
+        -o ${prefix}_rust_out.fasta \\
+        -t 10
     """
 }
 

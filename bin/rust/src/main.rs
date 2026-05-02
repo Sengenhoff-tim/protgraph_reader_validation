@@ -1,8 +1,7 @@
 use anyhow::{Result, anyhow};
 use clap::Parser;
-use rayon::prelude::*;
 use std::sync::Arc;
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{bounded, Sender};
 use std::fs::File;
 use std::io::{BufReader};
 use std::thread;
@@ -12,7 +11,7 @@ mod protgraph_io;
 mod protgraph_types;
 
 use crate::protgraph_types::{ProteinGraph, Interval};
-use crate::protgraph_io::{ProteinGraphReader, fasta_writer_thread, read_query_csv};
+use crate::protgraph_io::{ProteinGraphReader, writer_thread, read_query_csv};
 
 const WEIGHT_FACTOR: i64 = 1000000000; //as per the original implementation
 
@@ -29,13 +28,17 @@ struct Cli {
 
     #[arg(short = 'o', long = "output", value_name = "OUTPUT", help = "output file name" )]
     output: PathBuf,
+
+    #[arg(short = 't', long = "threads", value_name = "THREADS", help = "thread count" )]
+    thread_count: u8,
 }
 
 fn process_graphs(
     graph_input_path: PathBuf,
     output_path: PathBuf, 
-    intervals: Vec<Interval>, 
+    intervals: &Vec<Interval>, 
     max_vars: u8, 
+    t_count: usize
 ) -> anyhow::Result<()> {
 
     let file = File::open(&graph_input_path)?;
@@ -47,9 +50,7 @@ fn process_graphs(
         match graph {
             Ok(protein_graph) => { 
                 let protein_graph = std::sync::Arc::new(protein_graph);
-                // Using compact format
-                //protein_graph.write_to_file_compact("intervals_compact_rust_.txt")?;
-                process_single_graph(protein_graph, &intervals, max_vars, output_path.clone())?; 
+                process_single_graph(protein_graph, &intervals, max_vars, output_path.clone(), t_count)?; 
             }
             Err(e) => {
                 eprintln!("error reading graph: {}", e);
@@ -61,145 +62,89 @@ fn process_graphs(
     Ok(())
 }
 
-fn process_single_graph( 
-    graph: Arc<ProteinGraph>, 
-    intervals: &[Interval], 
-    max_vars: u8, 
-    output_path: PathBuf, 
-) -> anyhow::Result<()> { 
-    let (tx, rx): (
-        Sender<Vec<Vec<(u32, u32)>>>, 
-        Receiver<Vec<Vec<(u32, u32)>>>
-    ) = bounded(128); 
-    let graph_for_writer = Arc::clone(&graph); 
-    let writer_handle = thread::spawn(move || { 
-        fasta_writer_thread(
-            rx, 
-            output_path, 
-            graph_for_writer
-        ) 
-    }); 
-    
-    spawn_producers(
-        graph, 
-        intervals, 
-        max_vars, 
-        tx,
-    )?; 
-    
-    writer_handle
-        .join()
-        .map_err(|_| anyhow!("Writer thread panicked"))??; 
-    
-    Ok(()) 
-}
-/*
 fn process_single_graph(
     graph: Arc<ProteinGraph>,
-    intervals: &[Interval],
+    intervals: &Vec<Interval>,
     max_vars: u8,
     output_path: PathBuf,
-) -> anyhow::Result<()> {
-    let (
-        tx, 
-        rx
-    ): (
-        Sender<Vec<u32>>,
-        Receiver<Vec<u32>>
-    ) = bounded(128);
+    num_threads: usize,
+) -> Result<()> {
+
+    let (tx, rx) = bounded::<Vec<(u32, u32)>>(128);
 
     let graph_for_writer = Arc::clone(&graph);
 
     let writer_handle = thread::spawn(move || {
-        fasta_writer_thread(rx, output_path, graph_for_writer)
+        writer_thread(rx, output_path, graph_for_writer)
     });
 
-    spawn_producers(graph, intervals, max_vars, tx)?;
+    spawn_workers(
+        graph,
+        intervals,
+        max_vars,
+        tx,
+        num_threads,
+    )?;
 
-    writer_handle.join().map_err(|_| anyhow!("Writer thread panicked"))??;
+    writer_handle
+        .join()
+        .map_err(|_| anyhow!("Writer thread panicked"))??;
 
     Ok(())
 }
-fn spawn_producers(
+
+fn spawn_workers(
     graph: Arc<ProteinGraph>,
-    intervals: &[Interval],
+    intervals: &Vec<Interval>,
     max_vars: u8,
-    tx: Sender<Vec<u32>>,
+    tx: Sender<Vec<(u32, u32)>>,
+    num_threads: usize,
 ) -> Result<()> {
-    intervals.par_iter().for_each(|interval| {
-        let result: Result<()> = (|| {
-            graph.traverse_varcount_streaming(interval, max_vars, |path| {
-                tx.send(path.to_vec())
-                    .map_err(|e| anyhow!("send failed: {}", e))?;
-                Ok(())
-            })?;
-            Ok(())
-        })();
 
-        if let Err(e) = result {
-            eprintln!("interval {:?} failed: {:?}", interval, e);
-        }
-    });
+    let (job_tx, job_rx) = bounded::<Interval>(num_threads);
 
-    drop(tx);
-    Ok(())
-}
+    // ---- spawn workers ----
+    let mut handles = Vec::new();
 
-fn spawn_producers(
-    graph: Arc<ProteinGraph>,
-    intervals: &[Interval], 
-    max_vars: u8, 
-    tx: Sender<Vec<Vec<u32>>>, 
-) -> anyhow::Result<()> {
-    intervals.par_iter().try_for_each(|interval| {
-        let paths = graph.traverse_varcount(interval, max_vars)?; 
-        tx.send(paths).map_err(|e| anyhow!(e))?; 
-        Ok::<(), Error>(()) 
-    })?; 
+    for _ in 0..num_threads {
+        let graph = Arc::clone(&graph);
+        let job_rx = job_rx.clone();
+        let tx = tx.clone();
 
-    drop(tx); 
-    
-    Ok(()) 
-}
-*/
+        let handle = thread::spawn(move || {
+            for interval in job_rx {
+                if let Err(e) = graph.traversal_data.traverse_and_stream_traces(&interval, max_vars, &tx) {
+                    eprintln!("interval failed: {e:?}");
+                }
+            }
+        });
 
-fn spawn_producers(
-    graph: Arc<ProteinGraph>,
-    intervals: &[Interval],
-    max_vars: u8,
-    tx: Sender<Vec<Vec<(u32, u32)>>>,
-) -> Result<()> {
-    intervals.par_iter().for_each(|interval| {
-        let result: Result<()> = (|| {
-            let paths = graph
-                .traversal_data.traverse_and_build_traces(interval, max_vars)
-                .map_err(|e| anyhow!("traversal failed: {e}"))?;
+        handles.push(handle);
+    }
 
-                tx.send(paths)
-                .map_err(|e| anyhow!("channel send failed: {e}"))?;
+    // ---- feed jobs ----
+    for interval in intervals.iter() {
+        job_tx.send(interval.clone())
+            .map_err(|e| anyhow!("job send failed: {e}"))?;
+    }
 
-            Ok(())
-        })();
-
-        if let Err(e) = result {
-            eprintln!("interval failed: {e:?}");
-        }
-    });
-
+    drop(job_tx);
     drop(tx);
 
+    // ---- join workers ----
+    for handle in handles {
+        handle.join()
+            .map_err(|_| anyhow!("worker panicked"))?;
+    }
+
     Ok(())
 }
-
-
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     
     let intervals = read_query_csv(&cli.queries, WEIGHT_FACTOR)?;
-    /*
-    write_dummy_fasta("dummy.fasta".into())?;
-    */
-    process_graphs(cli.graphs, cli.output, intervals, cli.max_vars)?;
+
+    process_graphs(cli.graphs, cli.output, &intervals, cli.max_vars, cli.thread_count as usize)?;
     Ok(())
 }
