@@ -116,7 +116,8 @@ process READERRUST {
         -q ${rust_queries_csv} \\
         -x ${max_vars} \\
         -o ${prefix}_rust_out.fasta \\
-        -t 10
+        -t 50 \\
+        -i 100
     """
 }
 

@@ -8,7 +8,7 @@ pub mod string_table;
 pub use string_table::{StringTable};
 
 pub mod interval;
-pub use interval::{Interval};
+pub use interval::{Interval, IntervalVecExt};
 
 pub mod traversal_state;
 pub use traversal_state::TraversalState;
