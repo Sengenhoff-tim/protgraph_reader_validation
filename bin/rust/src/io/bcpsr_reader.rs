@@ -2,19 +2,20 @@ use std::io::{BufRead, ErrorKind};
 use byteorder::{BigEndian, ReadBytesExt};
 use anyhow::{Result, anyhow};
 
-use crate::protgraph_types::{Interval, Pdbs, ProteinGraph, StringTable, graph::{MetaData, TraversalData}};
+use crate::traversal::{Interval, Pdbs, ProteinGraph, StringTable, MetaData, TraversalData};
 
 // Reader for the bpcsr binary files produced by ProtGraph. Implementation closely resembles the original for correctness.
 // The max vars vector is never build as per the requirements.
 
 pub struct ProteinGraphReader<R: BufRead> {
     rdr: R,
+    sequence_hashes: bool,
     finished: bool,
 }
 
 impl<R: BufRead> ProteinGraphReader<R> {
-    pub fn new(rdr: R) -> Self {
-        Self { rdr, finished: false }
+    pub fn new(rdr: R, sequence_hashes: bool) -> Self {
+        Self { rdr, sequence_hashes: sequence_hashes, finished: false}
     }
 }
 
@@ -37,7 +38,7 @@ impl<R: BufRead> Iterator for ProteinGraphReader<R> {
             }
         };
 
-        match read_single_graph(num_acc, &mut self.rdr) {
+        match read_single_graph(num_acc, &mut self.rdr, self.sequence_hashes) {
             Ok(pg) => Some(Ok(pg)),
             Err(e) => {
                 self.finished = true;
@@ -54,12 +55,12 @@ impl<R: BufRead> Iterator for ProteinGraphReader<R> {
     }
 }
 
-fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<ProteinGraph> {
+fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R, sequence_hashes: bool) -> Result<ProteinGraph> {
         let n_acc = num_acc as usize;
         // Read counts (big-endian)
         let n_nodes = reader.read_u32::<BigEndian>()? as usize;
-        let n_edges = reader.read_u32::<BigEndian>()? as usize; //not used, reader needs to progress
-        let n_pdbs  = reader.read_u32::<BigEndian>()? as usize; //not used, reader needs to progress
+        let n_edges = reader.read_u32::<BigEndian>()? as usize;
+        let n_pdbs  = reader.read_u32::<BigEndian>()? as usize;
 
         // Accessions (AC): num_acc NUL-terminated strings
         let mut accessions: Vec<String> = Vec::with_capacity(n_acc);
@@ -73,7 +74,7 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Protein
         // Edges (ED): n_edges u32 BE
         let edges = read_u32_vec(reader, n_edges)?;
 
-        let sequences = build_from_reader(reader, n_nodes)?;
+        let sequences = build_from_reader(reader, n_nodes, sequence_hashes)?;
 
         // Position (PO): n_nodes u16 BE
         let position = read_u16_vec(reader, n_nodes)?;
@@ -96,7 +97,7 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Protein
             cleaved[i] = reader.read_u8()? != 0;
         }
 
-        let qualifiers = build_from_reader(reader, n_edges)?;
+        let qualifiers = build_from_reader(reader, n_edges, false)?;
 
         // Variant count (VC): n_edges u8
         let variant_count = read_u8_vec(reader, n_edges)?;
@@ -115,24 +116,24 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Protein
             },
             meta_data: MetaData{
                 accessions,
-                sequences,
                 position: position.into_boxed_slice(),
                 iso_index: iso_index.into_boxed_slice(),
                 iso_position: iso_position.into_boxed_slice(),
                 cleaved,
                 qualifiers,
-            }
+            },
+            sequences: sequences,
         })
     }
 
-fn build_from_reader<R: BufRead>(reader: &mut R, count: usize) -> Result<StringTable> {
+fn build_from_reader<R: BufRead>(reader: &mut R, count: usize, with_hashes: bool) -> Result<StringTable> {
         let mut items = Vec::with_capacity(count);
 
         for _ in 0..count {
             items.push(read_cstring(reader)?);
         }
 
-        Ok(StringTable::build_from_strings(items))
+        Ok(StringTable::build_from_strings(items, with_hashes))
     }
 
 

@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use crate::protgraph_types::Interval;
+use crate::traversal::Interval;
 
 // Pdbs are stored in a vector of intervals.
 // The relevant intervals are stored in a continuous vector and can be retrived by node index.

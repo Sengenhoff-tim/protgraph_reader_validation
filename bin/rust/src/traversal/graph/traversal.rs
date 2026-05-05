@@ -1,7 +1,7 @@
 use::anyhow::{Result, anyhow};
 use crossbeam_channel::Sender;
 use std::mem::{take};
-use crate::protgraph_types::{Interval, TraversalState, Pdbs};
+use crate::traversal::{Interval, TraversalState, Pdbs};
 
 pub struct TraversalData {
     pub nodes: Box<[u32]>,
@@ -67,11 +67,11 @@ impl TraversalData {
                         continue;
                     }
                     traversal_state.push_state(
-                        self.edges[edge_idx],
                         state_id,
+                        self.edges[edge_idx],
                         edge_idx as u32,
-                        achieved,
                         new_var,
+                        achieved,
                         target_node,
                     );
                 }           
@@ -84,7 +84,7 @@ impl TraversalData {
         &self,
         interval: &Interval,
         max_vars: u8,
-        tx: &Sender<Vec<(u32, u32)>>
+        tx: &Sender<Vec<(u32, u32)>>,
     ) -> anyhow::Result<()> {
         let traversal_state = &self.traverse_varcount(interval, max_vars)?;
 
@@ -101,7 +101,6 @@ impl TraversalData {
         Ok(())
     }
 
-
 #[inline]
 pub fn has_overlapping_interval(
     &self,
@@ -111,7 +110,7 @@ pub fn has_overlapping_interval(
 ) -> bool {
     let slice = match self.pdbs.get_node_intervals(node) {
         Some(s) => s,
-        None => return false, // or debug_assert! depending on invariants
+        None => return false,
     };
 
     let mut i = 0;

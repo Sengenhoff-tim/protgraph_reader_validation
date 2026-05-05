@@ -1,12 +1,13 @@
 use std::io::{Write};
 use anyhow::{Result};
+use serde::{Deserialize, Serialize};
 
-use crate::{protgraph_types::{StringTable}};
+use crate::{traversal::{StringTable}};
 
 // Protein graph struct and utility functions.
 // Compared to the original implementation, the max vars vector has been removed as per the requirements.
 
-
+#[derive(Serialize, Deserialize)]
 pub struct MetaData {
     pub accessions: Vec<String>,
     pub position: Box<[u16]>,
@@ -14,13 +15,13 @@ pub struct MetaData {
     pub iso_index: Box<[u8]>,
     pub cleaved: Vec<bool>,
     pub qualifiers: StringTable,
-    pub sequences: StringTable,
 }
 
 impl MetaData {
     
 pub fn write_fragment<W: Write>(
     &self,
+    sequences: &StringTable,
     out: &mut W,
     trace: &[(u32, u32)],
 ) -> Result<()> {
@@ -47,7 +48,7 @@ pub fn write_fragment<W: Write>(
     for &(node, edge) in &trace[1..len - 1] {
         let node_idx = node as usize;
 
-        let seq = self.sequences.get_str(node_idx);
+        let seq = sequences.get_str(node_idx);
         if !seq.is_empty() {
             let seq_len = seq.len();
 

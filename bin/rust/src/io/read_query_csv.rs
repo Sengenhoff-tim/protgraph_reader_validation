@@ -3,7 +3,7 @@ use csv::Reader;
 use std::fs::File;
 use std::path::PathBuf;
 
-use crate::protgraph_types::{Interval};
+use crate::traversal::{Interval};
 
 pub fn read_query_csv(path: &PathBuf, weight_factor: i64) -> Result<Vec<Interval>> {
     let file = File::open(path)?;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use crossbeam_channel::Receiver;
 
-use crate::protgraph_types::{ProteinGraph};
+use crate::traversal::{ProteinGraph};
 
 pub fn writer_thread(
     rx: Receiver<Vec<(u32, u32)>>, // single trace
@@ -31,7 +31,7 @@ pub fn writer_thread(
     let mut writer = BufWriter::new(file);
 
     for trace in rx {
-        graph.meta_data.write_fragment(&mut writer, &trace)?;
+        graph.meta_data.write_fragment(&graph.sequences, &mut writer, &trace)?;
     }
 
     writer.flush()?;
