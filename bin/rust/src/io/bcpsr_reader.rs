@@ -1,3 +1,43 @@
+use crossbeam_channel::{Sender};
+use std::io::{BufRead, ErrorKind};
+
+use byteorder::{BigEndian, ReadBytesExt};
+use anyhow::{Result, anyhow};
+
+use crate::traversal::{Interval, Pdbs, ProteinGraph, StringTable, MetaData, TraversalData};
+
+pub fn start_protein_graph_reader<R: BufRead>(
+    rdr: R,
+    tx_protgraph: Sender<Result<ProteinGraph>>,
+) {
+    let mut rdr = rdr;
+    
+    loop {
+        let num_acc = match rdr.read_u32::<BigEndian>() {
+            Ok(n) => n,
+            Err(e) => {
+                if e.kind() != ErrorKind::UnexpectedEof {
+                    let _ = tx_protgraph.send(Err(anyhow!("{}", e)));
+                }
+                break;
+            }
+        };
+
+        match read_single_graph(num_acc, &mut rdr) {
+            Ok(pg) => {
+                if tx_protgraph.send(Ok(pg)).is_err() {
+                    break;
+                }
+            }
+            Err(e) => {
+                let _ = tx_protgraph.send(Err(e));
+                break;
+            }
+        }
+    }
+}
+
+/* 
 use std::io::{BufRead, ErrorKind};
 use byteorder::{BigEndian, ReadBytesExt};
 use anyhow::{Result, anyhow};
@@ -9,13 +49,12 @@ use crate::traversal::{Interval, Pdbs, ProteinGraph, StringTable, MetaData, Trav
 
 pub struct ProteinGraphReader<R: BufRead> {
     rdr: R,
-    sequence_hashes: bool,
     finished: bool,
 }
 
 impl<R: BufRead> ProteinGraphReader<R> {
-    pub fn new(rdr: R, sequence_hashes: bool) -> Self {
-        Self { rdr, sequence_hashes: sequence_hashes, finished: false}
+    pub fn new(rdr: R) -> Self {
+        Self { rdr, finished: false}
     }
 }
 
@@ -38,7 +77,7 @@ impl<R: BufRead> Iterator for ProteinGraphReader<R> {
             }
         };
 
-        match read_single_graph(num_acc, &mut self.rdr, self.sequence_hashes) {
+        match read_single_graph(num_acc, &mut self.rdr) {
             Ok(pg) => Some(Ok(pg)),
             Err(e) => {
                 self.finished = true;
@@ -54,8 +93,8 @@ impl<R: BufRead> Iterator for ProteinGraphReader<R> {
         }
     }
 }
-
-fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R, sequence_hashes: bool) -> Result<ProteinGraph> {
+ */
+fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<ProteinGraph> {
         let n_acc = num_acc as usize;
         // Read counts (big-endian)
         let n_nodes = reader.read_u32::<BigEndian>()? as usize;
@@ -74,7 +113,7 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R, sequence_hashes: 
         // Edges (ED): n_edges u32 BE
         let edges = read_u32_vec(reader, n_edges)?;
 
-        let sequences = build_from_reader(reader, n_nodes, sequence_hashes)?;
+        let sequences = build_from_reader(reader, n_nodes)?;
 
         // Position (PO): n_nodes u16 BE
         let position = read_u16_vec(reader, n_nodes)?;
@@ -97,7 +136,7 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R, sequence_hashes: 
             cleaved[i] = reader.read_u8()? != 0;
         }
 
-        let qualifiers = build_from_reader(reader, n_edges, false)?;
+        let qualifiers = build_from_reader(reader, n_edges)?;
 
         // Variant count (VC): n_edges u8
         let variant_count = read_u8_vec(reader, n_edges)?;
@@ -120,20 +159,20 @@ fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R, sequence_hashes: 
                 iso_index: iso_index.into_boxed_slice(),
                 iso_position: iso_position.into_boxed_slice(),
                 cleaved,
+                sequences,
                 qualifiers,
             },
-            sequences: sequences,
         })
     }
 
-fn build_from_reader<R: BufRead>(reader: &mut R, count: usize, with_hashes: bool) -> Result<StringTable> {
+fn build_from_reader<R: BufRead>(reader: &mut R, count: usize) -> Result<StringTable> {
         let mut items = Vec::with_capacity(count);
 
         for _ in 0..count {
             items.push(read_cstring(reader)?);
         }
 
-        Ok(StringTable::build_from_strings(items, with_hashes))
+        Ok(StringTable::build_from_strings(items))
     }
 
 
@@ -147,10 +186,26 @@ fn read_u16_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u16>> {
     })
 }
 
+// check for u32::MAX which is used as sentinel in TraversalData
 fn read_u32_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u32>> {
-    read_be_vec(reader, count, 4, |b| {
-        u32::from_be_bytes([b[0], b[1], b[2], b[3]])
-    })
+    let mut out = Vec::with_capacity(count);
+    let mut buf = [0u8; 4];
+
+    for i in 0..count {
+        reader.read_exact(&mut buf)?;
+        let value = u32::from_be_bytes(buf);
+
+        if value == u32::MAX {
+           return Err(anyhow!(
+                "u32::MAX at index {} (reserved sentinel; possible overflow/truncation)",
+                i
+            ));
+        }
+
+        out.push(value);
+    }
+
+    Ok(out)
 }
 
 fn read_be_vec<R: BufRead, T>(
@@ -161,14 +216,14 @@ fn read_be_vec<R: BufRead, T>(
 ) -> Result<Vec<T>> {
     let total = count
         .checked_mul(byte_len)
-        .ok_or_else(|| anyhow::anyhow!("overflow in allocation size"))?;
+        .ok_or_else(|| anyhow!("overflow in allocation size"))?;
     let mut buf = vec![0u8; total];
     reader.read_exact(&mut buf)?;
 
     let mut out = Vec::with_capacity(count);
 
     for chunk in buf.chunks_exact(byte_len) {
-        out.push(parse(chunk));
+        out.push(parse(chunk)); 
     }
 
     Ok(out)

@@ -1,37 +1,43 @@
-use std::io::{BufWriter, Write};
-use std::fs::{OpenOptions};
-use std::path::PathBuf;
-use std::sync::Arc;
-use anyhow::Result;
+use std::io::{Write};
 use crossbeam_channel::Receiver;
 
-use crate::traversal::{ProteinGraph};
+use crate::traversal::Entry;
 
-pub fn writer_thread(
-    rx: Receiver<Vec<(u32, u32)>>, // single trace
-    output_path: PathBuf,
-    graph: Arc<ProteinGraph>,
+/* 
+pub fn writer_thread<W: Write>(
+    rx: Receiver<Vec<(u32, u32)>>,
+    writer: &mut W,
+    meta_data: Arc<MetaData>,
+    sequences: Arc<StringTable>,
 ) -> Result<()> {
-
-    let output_path = if output_path.is_absolute() {
-        output_path
-    } else {
-        std::env::current_dir()?.join(output_path)
-    };
-
-    if let Some(parent) = output_path.parent() {
-        std::fs::create_dir_all(parent)?;
+    for trace in rx {
+        meta_data.write_fragment(sequences.clone(), writer, &trace)?;
     }
 
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(output_path)?;
+    writer.flush()?;
+    Ok(())
+}
 
-    let mut writer = BufWriter::new(file);
+    */
 
-    for trace in rx {
-        graph.meta_data.write_fragment(&graph.sequences, &mut writer, &trace)?;
+pub fn writer_thread<W: Write>(
+    rx_entry: Receiver<Entry>,
+    writer: &mut W,
+) -> anyhow::Result<()> {
+    //, 
+    for entry in rx_entry {
+        let spos = entry.spos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+        let epos = entry.epos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+        writeln!(
+            writer,
+            ">pg|TODO|{}({}:{},mssclvg:{},{})\n{}",
+            entry.acc,
+            spos,
+            epos,
+            entry.mssclvg,
+            entry.qualifiers,
+            entry.pep
+            )?;
     }
 
     writer.flush()?;

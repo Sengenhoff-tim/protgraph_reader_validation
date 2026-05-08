@@ -11,4 +11,7 @@ pub mod interval;
 pub use interval::{Interval, IntervalVecExt};
 
 pub mod traversal_state;
-pub use traversal_state::{TraversalState, SerializedTraversalState, SerializableState, StateId};
+pub use traversal_state::{TraversalState};
+
+pub mod entry;
+pub use entry::Entry;

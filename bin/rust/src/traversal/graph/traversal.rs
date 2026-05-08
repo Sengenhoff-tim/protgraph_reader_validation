@@ -1,7 +1,7 @@
 use::anyhow::{Result, anyhow};
 use crossbeam_channel::Sender;
-use std::mem::{take};
-use crate::traversal::{Interval, TraversalState, Pdbs};
+use std::{mem::take, sync::Arc};
+use crate::traversal::{Entry, Interval, MetaData, Pdbs, TraversalState};
 
 pub struct TraversalData {
     pub nodes: Box<[u32]>,
@@ -80,6 +80,7 @@ impl TraversalData {
         Ok(traversal_state)
     }
 
+    /* 
     pub fn traverse_and_stream_traces(
         &self,
         interval: &Interval,
@@ -96,6 +97,31 @@ impl TraversalData {
 
             tx.send(trace)
                 .map_err(|e| anyhow!("channel send failed: {e}"))?;
+        }
+
+        Ok(())
+    }
+    */
+
+    pub fn traverse_and_stream_entries(
+        &self,
+        interval: &Interval,
+        max_vars: u8,
+        tx_entry: &Sender<Entry>,
+        meta: &Arc<MetaData>,
+    ) -> anyhow::Result<()> {
+        let traversal_state = &self.traverse_varcount(interval, max_vars)?;
+
+        let final_states =
+            &traversal_state.states_at_node[(self.nodes.len() - 1) as usize];
+
+        for &state_id in final_states {
+            let trace = traversal_state.reconstruct_trace(state_id);
+
+            if let Ok(Some(entry)) = meta.build_peptide(&trace) {
+                tx_entry.send(entry)
+                    .map_err(|e| anyhow!("entry send failed: {e}"))?;
+            }
         }
 
         Ok(())

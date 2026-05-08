@@ -1,0 +1,61 @@
+use std::collections::{HashMap, VecDeque};
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, Write};
+
+struct LruBucketWriter {
+    files: HashMap<u32, BufWriter<File>>,
+    order: VecDeque<u32>,
+    capacity: usize,
+    base_path: String,
+}
+
+impl LruBucketWriter {
+    fn new(capacity: usize, base_path: String) -> Self {
+        Self {
+            files: HashMap::new(),
+            order: VecDeque::new(),
+            capacity,
+            base_path,
+        }
+    }
+
+    fn touch(&mut self, bucket: u32) {
+        self.order.retain(|&b| b != bucket);
+        self.order.push_front(bucket);
+    }
+
+    fn evict_if_needed(&mut self) {
+        if self.files.len() <= self.capacity {
+            return;
+        }
+
+        if let Some(oldest) = self.order.pop_back() {
+            self.files.remove(&oldest);
+        }
+    }
+
+    fn get(&mut self, bucket: u32) -> &mut BufWriter<File> {
+        self.touch(bucket);
+
+        if !self.files.contains_key(&bucket) {
+            self.evict_if_needed();
+
+            let path = format!("{}/bucket_{:06}.bin", self.base_path, bucket);
+
+            let file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .unwrap();
+
+            self.files.insert(bucket, BufWriter::new(file));
+        }
+
+        self.files.get_mut(&bucket).unwrap()
+    }
+
+    fn write(&mut self, bucket: u32, data: &[u8]) {
+        let f = self.get(bucket);
+        f.write_all(data).unwrap();
+    }
+}

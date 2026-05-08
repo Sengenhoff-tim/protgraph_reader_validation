@@ -110,13 +110,14 @@ process READERRUST {
     )
 
     script:
+    p_count = Runtime.runtime.availableProcessors()
     """
     precursor_specifc_fasta \\
         -g ${database_bpcsr} \\
         -q ${rust_queries_csv} \\
         -x ${max_vars} \\
         -o ${prefix}_rust_out.fasta \\
-        -t 50 \\
+        -t ${p_count} \\
         -i 100
     """
 }
@@ -154,11 +155,12 @@ process READERCPP {
     )
 
     script:
+    p_count = Runtime.runtime.availableProcessors().div(2)
     """
     protgraphtraverseintvarlimitter \\
         ${database_bpcsr} \\
         ${queries_csv}\\
-        1 \\
+        ${p_count} \\
         ${prefix}_cpp_out.fasta \\
         ${cpp_limits_csv}
     """

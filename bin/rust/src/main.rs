@@ -8,11 +8,11 @@ mod workflows;
 
 use crate::traversal::{IntervalVecExt};
 use crate::io::{read_query_csv};
-use crate::workflows::{process_graphs_to_fasta, process_graphs_dedublicated};
+use crate::workflows::{process_graphs_dedublicated};
 
 const WEIGHT_FACTOR: i64 = 1000000000; //as per the original implementation
 
-#[derive(clap::Parser, Debug)]
+#[derive(Parser, Debug)]
 struct Cli {
     #[arg(short = 'g', long = "graphs", value_name = "PATH", help = ".bpcsr output file from ProtGraph, containing protein graphs" )]
     graphs: PathBuf,
@@ -26,7 +26,7 @@ struct Cli {
     #[arg(short = 'o', long = "output", value_name = "PATH", help = "output file name" )]
     output: PathBuf,
 
-    #[arg(short = 'd', long = "dedublicate", value_name = "BOOL", default_value_t = true, help = "dedublicate output: will write an additional file to fasta" )]
+    #[arg(short = 'd', long = "dedublicate", value_name = "BOOL", default_value_t = false, help = "dedublicate output: will write an additional file to fasta" )]
     dedublicate: bool,
 
     #[arg(short = 't', long = "threads", value_name = "U8", default_value_t = 10 , help = "thread count" )]
@@ -50,18 +50,12 @@ fn main() -> Result<()> {
     };
 
     if cli.dedublicate {
+        return Ok(())
+    } else {
         process_graphs_dedublicated(
             cli.graphs, 
-            &intervals, 
-            cli.max_vars, 
-            cli.thread_count as usize,
-        )?;
-        
-    } else {
-        process_graphs_to_fasta(
-            cli.graphs, 
             cli.output,
-            &intervals, 
+            intervals, 
             cli.max_vars, 
             cli.thread_count as usize,
         )?;
