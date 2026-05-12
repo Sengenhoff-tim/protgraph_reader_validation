@@ -35,34 +35,6 @@ fn process_shard(
     Ok(())
 }
 
-
-
-
-/*fn spawn_dispatcher(
-    result: WriterManagerResult,
-    tx: Sender<Vec<Entry>>,  // Send decoded entries directly
-) -> std::thread::JoinHandle<Result<()>> {
-    std::thread::spawn(move || -> Result<()> {
-        for (_, buf_writer) in result.handles {
-            let mut file = buf_writer.into_inner()?;
-            file.seek(std::io::SeekFrom::Start(0))?;
-    
-            let reader = BufReader::new(file);
-            let entries: Vec<Entry> = read_entries_binary(reader, bincode::config::standard())?;
-            tx.send(entries)?;
-        }
-
-        for path in result.filenames {
-            let file = std::fs::File::open(&path)?;
-            let reader = BufReader::new(file);
-            let entries: Vec<Entry> = bincode::decode_from_reader(reader, bincode::config::standard())?;
-            tx.send(entries)?;
-        }
-
-        Ok(())
-    })
-}*/
-
 fn spawn_dispatcher(
     result: WriterManagerResult,
     tx: Sender<Vec<Entry>>,
@@ -99,8 +71,6 @@ fn spawn_worker(
     })
 }
 
-
-
 pub fn bin_reader_manager(
     result: WriterManagerResult,
     num_threads: usize,
@@ -115,10 +85,7 @@ pub fn bin_reader_manager(
     let mut worker_handles = Vec::new();
     
     for _ in 0..num_threads {
-        let rx_in = rx_in.clone();
-        let tx_out = tx_out.clone();
-
-        let h = spawn_worker(rx_in, tx_out);
+        let h = spawn_worker(rx_in.clone(), tx_out.clone());
         worker_handles.push(h);
     }
 
@@ -146,7 +113,7 @@ fn spawn_writers(
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
         fs::create_dir_all(&outdir)?;
-        let seq_file = std::fs::File::create(&outdir.join("sequences.fasta"))?;
+        let seq_file = std::fs::File::create(&outdir.join("peptides.fasta"))?;
         let meta_file = std::fs::File::create(&outdir.join("metadata.csv"))?;
 
         let mut seq_writer = std::io::BufWriter::new(seq_file);
@@ -189,6 +156,7 @@ fn write_meta(
     for meta in metas{
         let spos = meta.spos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
         let epos = meta.epos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+        let qualifiers = meta.qualifiers.replace(",", "|");
         writeln!(
         writer,
         "{},{},{},{},{},[{}]",
@@ -197,7 +165,7 @@ fn write_meta(
         spos,
         epos,
         meta.mssclvg,
-        meta.qualifiers
+        qualifiers
     )?;
     }
     Ok(())

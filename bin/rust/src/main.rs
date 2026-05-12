@@ -26,7 +26,7 @@ struct Cli {
     #[arg(short = 'o', long = "output", value_name = "PATH", help = "output file name" )]
     output: PathBuf,
 
-    #[arg(short = 'd', long = "dedublicate", value_name = "BOOL", default_value_t = false, help = "dedublicate output: will write an additional file to fasta" )]
+    #[arg(short = 'd', long = "dedublicate", help = "dedublicate output: will write an additional file to fasta" )]
     dedublicate: bool,
 
     #[arg(short = 't', long = "threads", value_name = "U8", default_value_t = 10 , help = "thread count" )]
@@ -50,8 +50,6 @@ fn main() -> Result<()> {
     };
 
     if cli.dedublicate {
-        return Ok(())
-    } else {
         process_graphs_dedublicated(
             cli.graphs, 
             cli.output,
@@ -59,6 +57,8 @@ fn main() -> Result<()> {
             cli.max_vars, 
             cli.thread_count as usize,
         )?;
+    } else {
+        return Ok(());
     }
         
     Ok(())

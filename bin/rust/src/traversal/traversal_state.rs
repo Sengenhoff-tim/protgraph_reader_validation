@@ -79,31 +79,3 @@ impl TraversalState {
         self.states_at_node[target_node].push(id);
     }
 }
-/* 
-    impl Serialize for TraversalState {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut st = serializer.serialize_struct("TraversalState", 2)?;
-
-        let mut seq = serializer.serialize_seq(Some(self.arena.len()))?;
-
-        for s in &self.arena {
-            seq.serialize_element(&(
-                s.node,
-                s.edge,
-                s.parent,
-            ))?;
-        }
-
-        seq.end()?;
-
-        st.serialize_field("arena", &seq)?;
-        st.serialize_field("states_at_node", &self.states_at_node)?;
-
-        st.end()
-    }
-}
-}
-*/

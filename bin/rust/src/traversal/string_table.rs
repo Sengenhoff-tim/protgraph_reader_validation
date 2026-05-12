@@ -32,19 +32,6 @@ impl StringTable {
         }
     }
 
-    /*
-    #[inline(always)]
-    pub fn get_bytes(&self, idx: usize) -> &[u8] {
-        let r = unsafe { *self.mapping.get_unchecked(idx) };
-
-        unsafe {
-            self.buffer.get_unchecked(
-                r.start as usize .. r.start as usize + r.len as usize
-            )
-        }
-    }
-     */
-
 pub fn build_from_strings<I>(items: I) -> Self
     where
         I: IntoIterator<Item = String>,

@@ -37,63 +37,6 @@ pub fn start_protein_graph_reader<R: BufRead>(
     }
 }
 
-/* 
-use std::io::{BufRead, ErrorKind};
-use byteorder::{BigEndian, ReadBytesExt};
-use anyhow::{Result, anyhow};
-
-use crate::traversal::{Interval, Pdbs, ProteinGraph, StringTable, MetaData, TraversalData};
-
-// Reader for the bpcsr binary files produced by ProtGraph. Implementation closely resembles the original for correctness.
-// The max vars vector is never build as per the requirements.
-
-pub struct ProteinGraphReader<R: BufRead> {
-    rdr: R,
-    finished: bool,
-}
-
-impl<R: BufRead> ProteinGraphReader<R> {
-    pub fn new(rdr: R) -> Self {
-        Self { rdr, finished: false}
-    }
-}
-
-impl<R: BufRead> Iterator for ProteinGraphReader<R> {
-    type Item = Result<ProteinGraph>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.finished {
-            return None;
-        }
-
-        let num_acc = match self.rdr.read_u32::<BigEndian>() {
-            Ok(n) => n,
-            Err(e) => {
-                self.finished = true;
-                return match e.kind() {
-                    ErrorKind::UnexpectedEof => None,
-                    _ => Some(Err(anyhow!("{}", e))),
-                };
-            }
-        };
-
-        match read_single_graph(num_acc, &mut self.rdr) {
-            Ok(pg) => Some(Ok(pg)),
-            Err(e) => {
-                self.finished = true;
-                
-                if e.downcast_ref::<std::io::Error>()
-                    .is_some_and(|ioe| ioe.kind() == ErrorKind::UnexpectedEof)
-                {
-                    return None;
-                }
-                
-                Some(Err(e))
-            }
-        }
-    }
-}
- */
 fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<ProteinGraph> {
         let n_acc = num_acc as usize;
         // Read counts (big-endian)

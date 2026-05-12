@@ -3,23 +3,6 @@ use crossbeam_channel::Receiver;
 
 use crate::traversal::Entry;
 
-/* 
-pub fn writer_thread<W: Write>(
-    rx: Receiver<Vec<(u32, u32)>>,
-    writer: &mut W,
-    meta_data: Arc<MetaData>,
-    sequences: Arc<StringTable>,
-) -> Result<()> {
-    for trace in rx {
-        meta_data.write_fragment(sequences.clone(), writer, &trace)?;
-    }
-
-    writer.flush()?;
-    Ok(())
-}
-
-    */
-
 pub fn writer_thread<W: Write>(
     rx_entry: Receiver<Entry>,
     writer: &mut W,
