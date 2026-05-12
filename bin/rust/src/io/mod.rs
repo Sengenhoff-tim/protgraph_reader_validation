@@ -7,4 +7,8 @@ pub use file_writers::{writer_thread};
 pub mod read_query_csv;
 pub use read_query_csv::read_query_csv;
 
-//pub mod tmp_files;
+pub mod tmp_files;
+pub use tmp_files::spawn_writer_manager;
+
+pub mod bin_processor;
+pub use bin_processor::bin_reader_manager;

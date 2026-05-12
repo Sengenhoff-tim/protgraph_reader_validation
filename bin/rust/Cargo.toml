@@ -13,3 +13,4 @@ crossbeam-channel = "0.5.15"
 csv = "1.4.0"
 serde = { version = "1.0.228", features = ["derive"] }
 lru = "0.18.0"
+memmap2 = "0.9.10"

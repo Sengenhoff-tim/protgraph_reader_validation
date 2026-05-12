@@ -14,4 +14,4 @@ pub mod traversal_state;
 pub use traversal_state::{TraversalState};
 
 pub mod entry;
-pub use entry::Entry;
+pub use entry::{Entry, EntryMeta};

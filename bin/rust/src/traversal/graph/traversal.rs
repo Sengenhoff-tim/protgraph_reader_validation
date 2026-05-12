@@ -1,7 +1,10 @@
 use::anyhow::{Result, anyhow};
 use crossbeam_channel::Sender;
+use xxhash_rust::xxh64::xxh64;
 use std::{mem::take, sync::Arc};
 use crate::traversal::{Entry, Interval, MetaData, Pdbs, TraversalState};
+
+const SEED: u64 = 0xC0111DE;
 
 pub struct TraversalData {
     pub nodes: Box<[u32]>,
@@ -107,8 +110,9 @@ impl TraversalData {
         &self,
         interval: &Interval,
         max_vars: u8,
-        tx_entry: &Sender<Entry>,
+        tx_entry: &Sender<(u64, Entry)>,
         meta: &Arc<MetaData>,
+        do_hash: bool
     ) -> anyhow::Result<()> {
         let traversal_state = &self.traverse_varcount(interval, max_vars)?;
 
@@ -119,7 +123,11 @@ impl TraversalData {
             let trace = traversal_state.reconstruct_trace(state_id);
 
             if let Ok(Some(entry)) = meta.build_peptide(&trace) {
-                tx_entry.send(entry)
+                let mut pep_hash = 0;
+                if do_hash {
+                    pep_hash = xxh64(entry.pep.as_bytes(), SEED);
+                }
+                tx_entry.send((pep_hash ,entry))
                     .map_err(|e| anyhow!("entry send failed: {e}"))?;
             }
         }

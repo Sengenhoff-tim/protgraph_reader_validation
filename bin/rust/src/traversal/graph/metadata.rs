@@ -1,9 +1,6 @@
 use anyhow::{Result};
 
-use crate::{traversal::{StringTable, Entry}};
-
-use xxhash_rust::xxh64::xxh64;
-const SEED: u64 = 0xC0111DE;
+use crate::{traversal::{StringTable, Entry, EntryMeta}};
 
 // Protein graph struct and utility functions.
 // Compared to the original implementation, the max vars vector has been removed as per the requirements.
@@ -30,7 +27,7 @@ impl MetaData {
 
 pub fn build_peptide(
     &self, 
-    trace: &[(u32, u32)],
+    trace: &[(u32, u32)]
 ) -> Result<Option<Entry>> {
     let trace_len = trace.len();
 
@@ -71,13 +68,16 @@ pub fn build_peptide(
     let qualifiers_str = fwd_res.qualifiers.strip_suffix(',').unwrap_or(&fwd_res.qualifiers);
 
     Ok(Some(Entry{
-            pep_hash: xxh64(fwd_res.seq.as_bytes(), SEED),
-            pep: fwd_res.seq,
-            acc: acc.to_string(), 
-            qualifiers: qualifiers_str.to_string(),
-            spos: fwd_res.spos,
-            epos: epos,
-            mssclvg: fwd_res.mssclvg
+                pep: fwd_res.seq,
+                meta: EntryMeta {
+                    acc: acc.to_string(), 
+                    qualifiers: qualifiers_str.to_string(),
+                    spos: fwd_res.spos,
+                    epos: epos,
+                    mssclvg: fwd_res.mssclvg
+                }
+                
+            
             }
         )
     )

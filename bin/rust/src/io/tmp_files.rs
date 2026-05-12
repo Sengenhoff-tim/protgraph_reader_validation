@@ -24,20 +24,16 @@ let bits = required_hash_bits(
 */
 
 fn required_hash_bits(
-    total_entries: u64,
-    avg_record_size: u64,
-    max_memory: u64,
-    overhead: f64,
-    skew: f64,
+    writer_params: &BinWriterParams
 ) -> u32 {
     let total_bytes =
-        total_entries as f64
-        * avg_record_size as f64
-        * overhead
-        * skew;
+        writer_params.total_entries as f64
+        * writer_params.avg_entry_size as f64
+        * writer_params.overhead
+        * writer_params.skew;
 
     let required_shards =
-        (total_bytes / max_memory as f64).ceil() as u64;
+        (total_bytes / writer_params.max_memory as f64).ceil() as u64;
 
     required_shards
         .max(1)
@@ -76,8 +72,9 @@ fn open_writer(path: &Path) -> Result<BufWriter<File>> {
     let file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path)
-        .with_context(|| format!("failed to open {}", path.display()))?;
+        .read(true)
+        .write(true)
+        .open(path)?;
 
     Ok(BufWriter::new(file))
 }
@@ -89,19 +86,27 @@ fn shard_filename(
     out_dir.join(format!("shard_{shard_id:05}.bin"))
 }
 
+pub struct BinWriterParams{
+    pub total_entries: u64,
+    pub avg_entry_size: u64,
+    pub max_memory: u64,
+    pub overhead: f64,
+    pub skew: f64,
+    pub entry_channel_size: u64
+}
 ///
 /// Spawn writer manager thread.
 ///
 /// Returns:
-/// - Sender<Entry>
+/// - Sender<(u64, Entry)>
 /// - JoinHandle<Result<WriterManagerResult>>
 ///
 pub fn spawn_writer_manager(
     out_dir: impl AsRef<Path>,
-    hash_bits: u32,
+    params: BinWriterParams,
     max_open_files: usize,
 ) -> Result<(
-    Sender<Entry>,
+    Sender<(u64, Entry)>,
     JoinHandle<Result<WriterManagerResult>>,
 )> {
     let out_dir = out_dir.as_ref().to_path_buf();
@@ -109,7 +114,9 @@ pub fn spawn_writer_manager(
     create_dir_all(&out_dir)
         .with_context(|| format!("failed to create {}", out_dir.display()))?;
 
-    let (tx, rx) = crossbeam_channel::unbounded::<Entry>();
+    let hash_bits = required_hash_bits(&params);
+
+    let (tx, rx) = crossbeam_channel::bounded::<(u64, Entry)>(params.entry_channel_size as usize);
 
     let handle = thread::spawn(move || {
         writer_manager_thread(
@@ -124,7 +131,7 @@ pub fn spawn_writer_manager(
 }
 
 fn writer_manager_thread(
-    rx: Receiver<Entry>,
+    rx: Receiver<(u64, Entry)>,
     out_dir: PathBuf,
     hash_bits: u32,
     max_open_files: usize,
@@ -144,7 +151,7 @@ fn writer_manager_thread(
 
     while let Ok(entry) = rx.recv() {
         let shard_id =
-            (entry.pep_hash as usize) & shard_mask;
+            (entry.0 as usize) & shard_mask;
 
         let path = filenames
             .entry(shard_id)
@@ -167,7 +174,7 @@ fn writer_manager_thread(
             .get_mut(&path)
             .context("writer disappeared unexpectedly")?;
 
-        write_entry_binary(writer, &entry)?;
+        write_entry_binary(writer, &entry.1)?;
     }
 
     // flush remaining handles

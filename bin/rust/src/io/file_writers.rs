@@ -26,16 +26,17 @@ pub fn writer_thread<W: Write>(
 ) -> anyhow::Result<()> {
     //, 
     for entry in rx_entry {
-        let spos = entry.spos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-        let epos = entry.epos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+        let meta = entry.meta;
+        let spos = meta.spos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+        let epos = meta.epos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
         writeln!(
             writer,
             ">pg|TODO|{}({}:{},mssclvg:{},{})\n{}",
-            entry.acc,
+            meta.acc,
             spos,
             epos,
-            entry.mssclvg,
-            entry.qualifiers,
+            meta.mssclvg,
+            meta.qualifiers,
             entry.pep
             )?;
     }

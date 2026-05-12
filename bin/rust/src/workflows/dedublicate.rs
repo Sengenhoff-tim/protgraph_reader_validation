@@ -5,15 +5,14 @@ use std::sync::{Arc};
 use crossbeam_channel::{bounded, Sender, Receiver};
 use std::path::PathBuf;
 use anyhow::{Result, anyhow};
-use std::fs::OpenOptions;
-use std::io::BufWriter;
 use std::thread::JoinHandle;
 
+use std::io::Write;
 
+
+use crate::io::tmp_files::BinWriterParams;
 use crate::traversal::{Interval, MetaData, TraversalData, Entry, ProteinGraph};
-use crate::io::{start_protein_graph_reader, writer_thread};
-
-
+use crate::io::{start_protein_graph_reader, spawn_writer_manager, bin_reader_manager};
 
 pub fn process_graphs_dedublicated(
     graph_input_path: PathBuf,
@@ -28,24 +27,28 @@ pub fn process_graphs_dedublicated(
 
 
      //setup global channels
-    let (tx_entry, rx_entry) = bounded::<Entry>(t_count);
-
     let (tx_graph, rx_graph) = bounded::<Result<ProteinGraph>>(2);
 
     let reader_handle = thread::spawn(|| start_protein_graph_reader(reader, tx_graph));
 
+    let writer_params = BinWriterParams{
+        total_entries: 6*1000000,
+        avg_entry_size: 80,
+        overhead: 2.5,
+        skew: 2.0,
+        max_memory: 2 * 1024 * 1024 * 1024,
+        entry_channel_size: 100
+    };
     
-    //setup seq writer
-    let seq_writer = setup_output_file(&output_path)?;
-
-    let writer_handle = thread::spawn(move || {
-
-        let mut writer = seq_writer;
-
-        writer_thread(rx_entry, &mut writer)
-    });
+    let (tx_entry, writer_handle) = spawn_writer_manager(
+        "./shards",
+        writer_params,
+        128,
+    )?;
 
     let intervals = Arc::new(intervals);
+
+    let do_hash = true;
 
     let graph_handle = spawn_graph_processor(
         rx_graph,
@@ -53,7 +56,7 @@ pub fn process_graphs_dedublicated(
         intervals,
         max_vars,
         t_count,
-        1,
+        do_hash,
     )?;
 
     for h in graph_handle {
@@ -63,18 +66,31 @@ pub fn process_graphs_dedublicated(
     
     reader_handle.join().unwrap();
 
-    writer_handle.join().unwrap()?;
+    let result = writer_handle.join().unwrap()?;
+
+    let mut file = File::create("./test")?;
+
+    // Write some dummy content
+    writeln!(file, "generated {} shard files",
+        result.filenames.len())?;
+    writeln!(file, "still-open cached handles: {}",
+        result.handles.len())?;
+    
+
+    bin_reader_manager(result, t_count, output_path)?;
+
+    
 
     Ok(())
 }
 
 fn spawn_graph_processor(
     protein_graphs: Receiver<Result<ProteinGraph>>,
-    tx_entry: Sender<Entry>,
+    tx_entry: Sender<(u64, Entry)>,
     intervals: Arc<Vec<Interval>>,
     max_vars: u8,
     t_count: usize,
-    _num_threads: usize,
+    do_hash: bool
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     
     let handle = thread::spawn(move || -> anyhow::Result<()> {
@@ -87,6 +103,7 @@ fn spawn_graph_processor(
                 intervals.clone(),
                 max_vars,
                 t_count,
+                do_hash
             )?;
         }
 
@@ -96,57 +113,13 @@ fn spawn_graph_processor(
     Ok(vec![handle])
 }
 
-/* 
 fn process_protein_graph(
     protein_graph: ProteinGraph,
-    tx_entry: Sender<Entry>,
+    tx_entry: Sender<(u64, Entry)>,
     intervals: Arc<Vec<Interval>>,
     max_vars: u8,
     t_count: usize,
-) -> Result<()> {
-    let (tx_trace, rx_trace) = bounded::<Vec<(u32, u32)>>(t_count);
-
-    let traversal_data = Arc::new(protein_graph.traversal_data);
-    let meta_data = Arc::new(protein_graph.meta_data);
-
-    let peptide_handles = spawn_peptide_builders(
-        &meta_data,
-        tx_entry,
-        rx_trace,
-        t_count,
-    )?;
-
-    let trace_handles = spawn_trace_builders(
-        traversal_data, 
-        &intervals, 
-        max_vars, 
-        tx_trace.clone(), 
-        t_count
-    )?;
-
-    
-    for h in trace_handles {
-    h.join()
-        .map_err(|_| anyhow!("trace thread panicked"))??;
-    }
-
-    drop(tx_trace);
-
-    for h in peptide_handles {
-        h.join()
-            .map_err(|_| anyhow!("peptide thread panicked"))??;
-    }
-
-
-    Ok(())
-}
-*/
-fn process_protein_graph(
-    protein_graph: ProteinGraph,
-    tx_entry: Sender<Entry>,
-    intervals: Arc<Vec<Interval>>,
-    max_vars: u8,
-    t_count: usize,
+    do_hash: bool
 ) -> Result<()> {
 
     let traversal_data = Arc::new(protein_graph.traversal_data);
@@ -159,7 +132,8 @@ fn process_protein_graph(
         &intervals, 
         max_vars, 
         tx_entry.clone(), 
-        t_count
+        t_count,
+        do_hash
     )?;
 
     
@@ -170,115 +144,15 @@ fn process_protein_graph(
 
     Ok(())
 }
-/* 
-fn spawn_trace_builders(
-    traversal_data: Arc<TraversalData>,
-    intervals: &[Interval],
-    max_vars: u8,
-    tx: Sender<Vec<(u32, u32)>>,
-    num_threads: usize
-) -> Result<Vec<JoinHandle<Result<()>>>> {
 
-    let (job_tx, job_rx) = bounded::<Interval>(num_threads);
-
-    // ---- spawn workers ----
-    let mut handles = Vec::new();
-
-    for _ in 0..num_threads {
-        let data = Arc::clone(&traversal_data);
-        let job_rx = job_rx.clone();
-        let tx = tx.clone();
-
-        let handle = thread::spawn(move || -> Result<()> {
-            for interval in job_rx {
-                if let Err(e) = data.traverse_and_stream_traces(
-                    &interval, 
-                    max_vars, 
-                    &tx
-                ) {
-                    eprintln!("interval failed: {e:?}");
-                }
-            }
-
-            Ok(())
-        });
-
-        handles.push(handle);
-    }
-
-    // ---- feed jobs ----
-    for interval in intervals.iter() {
-        job_tx.send(interval.clone())
-            .map_err(|e| anyhow!("job send failed: {e}"))?;
-    }
-
-    drop(job_tx);
-
-
-    Ok(handles)
-}
-
-pub fn spawn_peptide_builders(
-    meta: &Arc<MetaData>,
-    tx_entry: Sender<Entry>,
-    rx_trace: Receiver<Vec<(u32, u32)>>,
-    num_threads: usize,
-) -> Result<Vec<JoinHandle<Result<()>>>> {
-    
-    let mut handles = Vec::new();
-
-    for _ in 0..num_threads {
-        let rx_trace = rx_trace.clone();
-        let tx_entry = tx_entry.clone();
-        let meta = Arc::clone(&meta);
-
-        let handle = thread::spawn(move || -> Result<()> {
-            for trace in rx_trace {
-                let peptide= meta.build_peptide(
-                    &trace,
-                );
-                if let Ok(Some(entry)) = peptide {
-                    tx_entry.send(entry)
-                        .map_err(|e| anyhow!("send failed: {e}"))?;
-                } else {
-                    continue;
-                }        
-            }
-
-            Ok(())
-        });
-
-        handles.push(handle);
-    }
-    Ok(handles)
-}
-    */
-
-pub fn setup_output_file(output_path: &PathBuf) -> Result<BufWriter<File>> {
-    let output_path = if output_path.is_absolute() {
-        output_path.to_path_buf()
-    } else {
-        std::env::current_dir()?.join(output_path)
-    };
-
-    if let Some(parent) = output_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(output_path)?;
-
-    Ok(BufWriter::new(file))
-}
 fn spawn_workers(
     traversal_data: Arc<TraversalData>,
     meta: Arc<MetaData>,
     intervals: &[Interval],
     max_vars: u8,
-    tx_entry: Sender<Entry>,
+    tx_entry: Sender<(u64, Entry)>,
     num_threads: usize,
+    do_hash: bool
 ) -> Result<Vec<JoinHandle<Result<()>>>> {
     let (job_tx, job_rx) = bounded::<Interval>(num_threads);
     let mut handles = Vec::new();
@@ -296,7 +170,8 @@ fn spawn_workers(
                     &interval,
                     max_vars,
                     &tx_entry,
-                    &meta
+                    &meta,
+                    do_hash,
                 ) {
                     eprintln!("interval failed: {e:?}");
                 }

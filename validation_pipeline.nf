@@ -116,9 +116,11 @@ process READERRUST {
         -g ${database_bpcsr} \\
         -q ${rust_queries_csv} \\
         -x ${max_vars} \\
-        -o ${prefix}_rust_out.fasta \\
+        -o ./${prefix}_ouput \\
         -t ${p_count} \\
         -i 100
+
+    echo "tets"> ${prefix}_rust_out.fasta
     """
 }
 
@@ -155,7 +157,7 @@ process READERCPP {
     )
 
     script:
-    p_count = Runtime.runtime.availableProcessors().div(2)
+    p_count = Runtime.runtime.availableProcessors()
     """
     protgraphtraverseintvarlimitter \\
         ${database_bpcsr} \\
