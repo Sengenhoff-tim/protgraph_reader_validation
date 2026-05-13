@@ -1,10 +1,15 @@
 use::anyhow::{Result, anyhow};
 use crossbeam_channel::Sender;
+use crossbeam_deque::Injector;
 use xxhash_rust::xxh64::xxh64;
-use std::{mem::take, sync::Arc};
-use crate::traversal::{Entry, Interval, MetaData, Pdbs, TraversalState};
+use std::{mem::take, sync::{Arc, atomic::{AtomicUsize, Ordering}}};
+use crate::traversal::{Entry, Interval, MetaData, Pdbs, TraversalState, TraversalStatus};
 
 const SEED: u64 = 0xC0111DE;
+
+const N_SPLITS: usize = 4;
+const MAX_DEPTH: u8 = 4;
+
 
 pub struct TraversalData {
     pub nodes: Box<[u32]>,
@@ -31,10 +36,11 @@ impl TraversalData {
         &self,
         interval: &Interval,
         max_vars: u8,
-    ) -> Result<TraversalState> {
+        limit: usize
+    ) -> Result<TraversalStatus> {
         let mut edge_ranges = Vec::with_capacity(self.nodes.len());
 
-        let mut traversal_state = TraversalState::new(self.nodes.len(), max_vars);
+        let mut traversal_state = TraversalState::new(self.nodes.len(), max_vars, limit);
         
         build_edge_ranges(&self.nodes, &mut edge_ranges);
 
@@ -69,18 +75,20 @@ impl TraversalData {
                     if !self.has_overlapping_interval(target_node, lower, upper) {
                         continue;
                     }
-                    traversal_state.push_state(
+                    if !traversal_state.push_state(
                         state_id,
                         self.edges[edge_idx],
                         edge_idx as u32,
                         new_var,
                         achieved,
                         target_node,
-                    );
+                    ) {
+                        return Ok(TraversalStatus::Overflow());
+                    }
                 }           
             }
         }
-        Ok(traversal_state)
+        Ok(TraversalStatus::Complete(traversal_state))
     }
 
     /* 
@@ -106,34 +114,70 @@ impl TraversalData {
     }
     */
 
-    pub fn traverse_and_stream_entries(
-        &self,
-        interval: &Interval,
-        max_vars: u8,
-        tx_entry: &Sender<(u64, Entry)>,
-        meta: &Arc<MetaData>,
-        do_hash: bool
-    ) -> anyhow::Result<()> {
-        let traversal_state = &self.traverse_varcount(interval, max_vars)?;
+    pub fn traverse_and_stream_traces(
+    &self,
+    interval: &Interval,
+    max_vars: u8,
+    tx: &Sender<Vec<(u32, u32)>>,
+    limit: usize
+) -> anyhow::Result<()> {
+    self.traverse_and_stream_traces_inner(
+        interval,
+        max_vars,
+        tx,
+        0, 
+        limit// depth starts here
+    )
+}
 
-        let final_states =
-            &traversal_state.states_at_node[(self.nodes.len() - 1) as usize];
+fn traverse_and_stream_traces_inner(
+    &self,
+    interval: &Interval,
+    max_vars: u8,
+    tx: &Sender<Vec<(u32, u32)>>,
+    depth: u8,
+    limit: usize
+) -> anyhow::Result<()> {
+    // =========================
+    // HARD TERMINATION CONDITION
+    // =========================
+    if depth >= MAX_DEPTH {
+        // placeholder (you said you will log here later)
+        return Ok(());
+    }
 
-        for &state_id in final_states {
-            let trace = traversal_state.reconstruct_trace(state_id);
+    let traversal_state = self.traverse_varcount(interval, max_vars, limit)?;
 
-            if let Ok(Some(entry)) = meta.build_peptide(&trace) {
-                let mut pep_hash = 0;
-                if do_hash {
-                    pep_hash = xxh64(entry.pep.as_bytes(), SEED);
-                }
-                tx_entry.send((pep_hash ,entry))
-                    .map_err(|e| anyhow!("entry send failed: {e}"))?;
+    match traversal_state {
+        TraversalStatus::Overflow() => {
+            let splits = interval.split(N_SPLITS);
+
+            for sub in splits {
+                self.traverse_and_stream_traces_inner(
+                    &sub,
+                    max_vars,
+                    tx,
+                    depth + 1,
+                    limit
+                )?;
             }
         }
 
-        Ok(())
+        TraversalStatus::Complete(state) => {
+            let final_states =
+                &state.states_at_node[(self.nodes.len() - 1) as usize];
+
+            for &state_id in final_states {
+                let trace = state.reconstruct_trace(state_id);
+
+                tx.send(trace)
+                    .map_err(|e| anyhow!("channel send failed: {e}"))?;
+            }
+        }
     }
+
+    Ok(())
+}
 
 #[inline]
 pub fn has_overlapping_interval(

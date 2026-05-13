@@ -1,42 +1,18 @@
-use anyhow::{Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
-use std::path::PathBuf;
 
 mod io;
+mod utils;
 mod traversal;
 mod workflows;
 
+use crate::utils::Cli;
 use crate::traversal::{IntervalVecExt};
 use crate::io::{read_query_csv};
 use crate::workflows::{process_graphs_dedublicated};
 
+
 const WEIGHT_FACTOR: i64 = 1000000000; //as per the original implementation
-
-#[derive(Parser, Debug)]
-struct Cli {
-    #[arg(short = 'g', long = "graphs", value_name = "PATH", help = ".bpcsr output file from ProtGraph, containing protein graphs" )]
-    graphs: PathBuf,
-
-    #[arg(short = 'q', long = "queries", value_name = "PATH", help = ".csv file, containing queries" )]
-    queries: PathBuf,
-
-    #[arg(short = 'x', long = "max_vars", value_name = "U8", default_value_t = 3, help = "maximum divergences from reference for each fragment" )]
-    max_vars: u8,
-
-    #[arg(short = 'o', long = "output", value_name = "PATH", help = "output file name" )]
-    output: PathBuf,
-
-    #[arg(short = 'd', long = "dedublicate", help = "dedublicate output: will write an additional file to fasta" )]
-    dedublicate: bool,
-
-    #[arg(short = 't', long = "threads", value_name = "U8", default_value_t = 10 , help = "thread count" )]
-    thread_count: u8,
-
-    #[arg(short = 'i', long = "interval_bin_length", value_name = "I64", help = "length of interval bins" )]
-    interval_bins: Option<i64>,
-}
-
-
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -44,7 +20,17 @@ fn main() -> Result<()> {
     let intervals = read_query_csv(&cli.queries, WEIGHT_FACTOR)?;
 
     let intervals = if let Some(bin_size) = cli.interval_bins {
-        intervals.to_chunks(bin_size*WEIGHT_FACTOR)
+        let scaled_chunk_size = bin_size
+            .checked_mul(WEIGHT_FACTOR)
+            .ok_or_else(|| {
+                anyhow!(
+                    "chunk size overflow: {} * {}",
+                    bin_size,
+                    WEIGHT_FACTOR
+                )
+            })?;
+
+        intervals.to_chunks(scaled_chunk_size)?
     } else {
         intervals
     };

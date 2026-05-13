@@ -4,6 +4,8 @@
 
 pub type StateId = usize;
 
+const STATE_SIZE: usize = 32;
+
 #[derive(Debug, Clone)]
 pub struct State {
     pub parent: StateId,
@@ -13,15 +15,19 @@ pub struct State {
     pub tv: i64,
 }
 
+pub enum TraversalStatus {
+    Complete(TraversalState),
+    Overflow(),
+}
 
 pub struct TraversalState {
-    //pub final_state_idx: usize,
+    pub limit: usize,
     pub arena: Vec<State>,
     pub states_at_node: Vec<Vec<StateId>>,
 }
 
 impl TraversalState {
-    pub fn new(num_nodes: usize, max_vars: u8) -> Self {
+    pub fn new(num_nodes: usize, max_vars: u8, limit: usize) -> Self {
         let mut arena = Vec::with_capacity(num_nodes*max_vars as usize);
         let mut states_at_node = vec![Vec::new(); num_nodes];
 
@@ -38,7 +44,7 @@ impl TraversalState {
         //let final_state_idx = num_nodes-1;
 
         Self {
-            //final_state_idx,
+            limit,
             arena,
             states_at_node,
         }
@@ -65,8 +71,12 @@ impl TraversalState {
         var: u8,
         tv: i64,
         target_node: usize,
-    ) -> () {
-        let id = self.arena.len();
+    ) -> bool {
+        let len: usize = self.arena.len();
+
+        if self.arena.len()*STATE_SIZE >= self.limit {
+            return false;
+        }
 
         self.arena.push(State {
             parent: parent,
@@ -76,6 +86,8 @@ impl TraversalState {
             tv: tv,
         });
 
-        self.states_at_node[target_node].push(id);
+        self.states_at_node[target_node].push(len);
+
+        true
     }
 }

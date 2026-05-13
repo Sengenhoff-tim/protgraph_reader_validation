@@ -2,16 +2,21 @@ use std::fs::File;
 use std::io::{BufReader};
 use std::thread;
 use std::sync::{Arc};
-use crossbeam_channel::{bounded, Sender, Receiver};
+use crossbeam_channel::{Receiver, Sender, bounded};
+use xxhash_rust::xxh64::xxh64;
 use std::path::PathBuf;
 use anyhow::{Result, anyhow};
 use std::thread::JoinHandle;
 
-use std::io::Write;
+const SEED: u64 = 0xC0111DE;
+
+//use std::io::Write;
+
+const MAX_DEPTH: u16 = 100;
 
 
 use crate::io::tmp_files::BinWriterParams;
-use crate::traversal::{Interval, MetaData, TraversalData, Entry, ProteinGraph};
+use crate::traversal::{Entry, Interval, MetaData, ProteinGraph, TraversalData, TraversalStatus};
 use crate::io::{start_protein_graph_reader, spawn_writer_manager, bin_reader_manager};
 
 pub fn process_graphs_dedublicated(
@@ -37,8 +42,11 @@ pub fn process_graphs_dedublicated(
         overhead: 2.5,
         skew: 2.0,
         max_memory: 2 * 1024 * 1024 * 1024,
-        entry_channel_size: 100
+        entry_channel_size: 50
     };
+
+    let n_splits = 2;
+    let limit = (1024*1024*1024)/t_count;
     
     let (tx_entry, writer_handle) = spawn_writer_manager(
         "./shards",
@@ -57,6 +65,8 @@ pub fn process_graphs_dedublicated(
         max_vars,
         t_count,
         do_hash,
+        limit,
+        n_splits
     )?;
 
     for h in graph_handle {
@@ -68,18 +78,7 @@ pub fn process_graphs_dedublicated(
 
     let result = writer_handle.join().unwrap()?;
 
-    let mut file = File::create("./test")?;
-
-    // Write some dummy content
-    writeln!(file, "generated {} shard files",
-        result.filenames.len())?;
-    writeln!(file, "still-open cached handles: {}",
-        result.handles.len())?;
-    
-
     bin_reader_manager(result, t_count, output_path)?;
-
-    
 
     Ok(())
 }
@@ -90,7 +89,10 @@ fn spawn_graph_processor(
     intervals: Arc<Vec<Interval>>,
     max_vars: u8,
     t_count: usize,
-    do_hash: bool
+    do_hash: bool,
+    limit: usize,
+    n_splits: usize
+
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     
     let handle = thread::spawn(move || -> anyhow::Result<()> {
@@ -103,7 +105,9 @@ fn spawn_graph_processor(
                 intervals.clone(),
                 max_vars,
                 t_count,
-                do_hash
+                do_hash,
+                limit,
+                n_splits
             )?;
         }
 
@@ -119,76 +123,138 @@ fn process_protein_graph(
     intervals: Arc<Vec<Interval>>,
     max_vars: u8,
     t_count: usize,
-    do_hash: bool
+    do_hash: bool,
+    limit: usize,
+    n_splits: usize
 ) -> Result<()> {
 
     let traversal_data = Arc::new(protein_graph.traversal_data);
     let meta_data = Arc::new(protein_graph.meta_data);
 
 
-    let worker_handles = spawn_workers(
-        traversal_data, 
-        meta_data,
-        &intervals, 
-        max_vars, 
-        tx_entry.clone(), 
-        t_count,
-        do_hash
-    )?;
-
-    
-    for h in worker_handles {
-    h.join()
-        .map_err(|_| anyhow!("worker thread panicked"))??;
-    }
-
+    spawn_workers(
+    traversal_data,
+    meta_data,
+    &intervals,
+    max_vars,
+    tx_entry.clone(),
+    t_count,
+    do_hash,
+    limit,
+    n_splits,
+)?;
     Ok(())
 }
 
-fn spawn_workers(
+use rayon::ThreadPoolBuilder;
+use rayon::scope;
+
+pub fn spawn_workers(
     traversal_data: Arc<TraversalData>,
     meta: Arc<MetaData>,
     intervals: &[Interval],
     max_vars: u8,
     tx_entry: Sender<(u64, Entry)>,
     num_threads: usize,
-    do_hash: bool
-) -> Result<Vec<JoinHandle<Result<()>>>> {
-    let (job_tx, job_rx) = bounded::<Interval>(num_threads);
-    let mut handles = Vec::new();
+    do_hash: bool,
+    limit: usize,
+    n_splits: usize,
+) -> Result<()> {
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .unwrap();
 
-    // ---- spawn workers ----
-    for _ in 0..num_threads {
-        let data = Arc::clone(&traversal_data);
-        let meta = Arc::clone(&meta);
-        let job_rx = job_rx.clone();
-        let tx_entry = tx_entry.clone();
+    pool.install(|| {
+        scope(|s| {
+            for interval in intervals.iter().cloned() {
+                let data = Arc::clone(&traversal_data);
+                let meta = Arc::clone(&meta);
+                let tx_entry = tx_entry.clone();
 
-        let handle = thread::spawn(move || -> Result<()> {
-            for interval in job_rx {
-                if let Err(e) = data.traverse_and_stream_entries(
-                    &interval,
-                    max_vars,
-                    &tx_entry,
-                    &meta,
-                    do_hash,
-                ) {
-                    eprintln!("interval failed: {e:?}");
+                s.spawn(move |_| {
+                    traverse_rayon(
+                        data,
+                        meta,
+                        tx_entry,
+                        interval,
+                        0, // depth
+                        max_vars,
+                        do_hash,
+                        limit,
+                        n_splits,
+                    );
+                });
+            }
+        });
+    });
+
+    Ok(())
+}
+
+fn traverse_rayon(
+    data: Arc<TraversalData>,
+    meta: Arc<MetaData>,
+    tx_entry: Sender<(u64, Entry)>,
+    interval: Interval,
+    depth: u16,
+    max_vars: u8,
+    do_hash: bool,
+    limit: usize,
+    n_splits: usize,
+) {
+    // -------------------------
+    // DEPTH TERMINATION
+    // -------------------------
+    if depth >= MAX_DEPTH {
+        return;
+    }
+
+    match data.traverse_varcount(&interval, max_vars, limit) {
+        Ok(TraversalStatus::Overflow()) => {
+            let splits = interval.split(n_splits);
+
+            for sub in splits {
+                let data = Arc::clone(&data);
+                let meta = Arc::clone(&meta);
+                let tx_entry = tx_entry.clone();
+
+                rayon::spawn(move || {
+                    traverse_rayon(
+                        data,
+                        meta,
+                        tx_entry,
+                        sub,
+                        depth + 1,
+                        max_vars,
+                        do_hash,
+                        limit,
+                        n_splits,
+                    );
+                });
+            }
+        }
+
+        Ok(TraversalStatus::Complete(state)) => {
+            let final_states =
+                &state.states_at_node[(data.nodes.len() - 1) as usize];
+
+            for &state_id in final_states {
+                let trace = state.reconstruct_trace(state_id);
+
+                if let Ok(Some(entry)) = meta.build_peptide(&trace) {
+                    let mut pep_hash = 0;
+                    if do_hash {
+                        pep_hash = xxh64(entry.pep.as_bytes(), SEED);
+                    }
+
+                    let _ = tx_entry.send((pep_hash, entry));
                 }
             }
-            Ok(())
-        });
+        }
 
-        handles.push(handle);
+        Err(e) => {
+            eprintln!("traverse error: {e:?}");
+        }
     }
-
-    // ---- feed jobs ----
-    for interval in intervals.iter() {
-        job_tx.send(interval.clone())
-            .map_err(|e| anyhow!("job send failed: {e}"))?;
-    }
-
-    drop(job_tx);
-
-    Ok(handles)
 }

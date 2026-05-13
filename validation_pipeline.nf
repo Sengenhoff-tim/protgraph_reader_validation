@@ -119,7 +119,7 @@ process READERRUST {
         -x ${max_vars} \\
         -o ./${prefix}_output \\
         -t ${p_count} \\
-        -i 100 \\
+        -i 50 \\
         ${dedub}
     """
 }
@@ -311,30 +311,15 @@ workflow {
             )
         }
 
-    build_input = BUILDINPUT(runs_ch)
+    BUILDINPUT(runs_ch)
 
-    build_graph = BUILDGRAPH(build_input)
+    BUILDGRAPH(BUILDINPUT.out)
     
+    READERRUST(BUILDGRAPH.out, "-d")
 
-    dedub(build_graph)
+    READERCPP(READERRUST.out)
 
-    //nodedub(ch2)
-}
+    DEDUPCPP(READERCPP.out)
 
-workflow dedub {
-    take: input
-    main:
-        dedub_rust = READERRUST(input, "-d")
-        dedup_cpp_in   = READERCPP(dedub_rust)
-        dedup_cpp = DEDUPCPP(dedup_cpp_in)
-        DIFFDEDUB(dedup_cpp)
-}
-
-workflow nodedub {
-    take: input
-    main:
-        no_dedub_rust = READERRUST(input, "")
-        no_dedub_cpp   = READERCPP(no_dedub_rust)
-
-        DIFF(no_dedub_cpp)
+    DIFFDEDUB(DEDUPCPP.out)
 }

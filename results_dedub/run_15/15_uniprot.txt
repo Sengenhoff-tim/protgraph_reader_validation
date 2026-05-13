@@ -1,1 +1,1 @@
-/home/tim/Documents/BA/protgraph_reader_validation/work/f6/125e37a447f6da0476fc9d9f140b67/15_uniprot.txt
+/home/tim/Documents/BA/protgraph_reader_validation/work/fd/2b5ef070c523e257ac5f31417abf62/15_uniprot.txt
