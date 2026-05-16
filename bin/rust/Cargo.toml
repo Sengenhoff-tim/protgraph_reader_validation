@@ -16,3 +16,5 @@ lru = "0.18.0"
 memmap2 = "0.9.10"
 crossbeam-deque = "0.8.6"
 rayon = "1.12.0"
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", features = ["resource"] }

@@ -3,31 +3,24 @@ use std::io::{BufReader};
 use std::thread;
 use std::sync::{Arc};
 use crossbeam_channel::{Receiver, Sender, bounded};
-use xxhash_rust::xxh64::xxh64;
-use std::path::PathBuf;
 use anyhow::{Result, anyhow};
 use std::thread::JoinHandle;
+use rayon::ThreadPoolBuilder;
+use rayon::scope;
 
-const SEED: u64 = 0xC0111DE;
-
-//use std::io::Write;
-
-const MAX_DEPTH: u16 = 100;
-
-
-use crate::io::tmp_files::BinWriterParams;
 use crate::traversal::{Entry, Interval, MetaData, ProteinGraph, TraversalData, TraversalStatus};
 use crate::io::{start_protein_graph_reader, spawn_writer_manager, bin_reader_manager};
+use crate::utils::Config;
 
-pub fn process_graphs_dedublicated(
-    graph_input_path: PathBuf,
-    output_path: PathBuf, 
-    intervals: Vec<Interval>, 
-    max_vars: u8, 
-    t_count: usize
+const GB: u64 = 1024*1024*1024;
+
+pub fn process_graphs_deduplicated(
+    config: Config
 ) -> Result<()> {
 
-    let file = File::open(&graph_input_path)?;
+    let cli = config.cli;
+
+    let file = File::open(cli.graph_input_path)?;
     let reader = BufReader::new(file);
 
 
@@ -36,37 +29,25 @@ pub fn process_graphs_dedublicated(
 
     let reader_handle = thread::spawn(|| start_protein_graph_reader(reader, tx_graph));
 
-    let writer_params = BinWriterParams{
-        total_entries: 6*1000000,
-        avg_entry_size: 80,
-        overhead: 2.5,
-        skew: 2.0,
-        max_memory: 2 * 1024 * 1024 * 1024,
-        entry_channel_size: 50
-    };
-
-    let n_splits = 2;
-    let limit = (1024*1024*1024)/t_count;
-    
     let (tx_entry, writer_handle) = spawn_writer_manager(
-        "./shards",
-        writer_params,
-        128,
+        &cli.output_path,
+        cli.hash_bits,
+        cli.max_handles,
+        cli.avail_processors
     )?;
+    
 
-    let intervals = Arc::new(intervals);
-
-    let do_hash = true;
+    let intervals = Arc::new(config.intervals);
 
     let graph_handle = spawn_graph_processor(
         rx_graph,
         tx_entry,
         intervals,
-        max_vars,
-        t_count,
-        do_hash,
-        limit,
-        n_splits
+        cli.max_vars,
+        cli.avail_processors as usize,
+        (cli.avail_memory as u64 *GB) as usize,
+        cli.job_splits,
+        cli.job_split_depth
     )?;
 
     for h in graph_handle {
@@ -78,20 +59,20 @@ pub fn process_graphs_dedublicated(
 
     let result = writer_handle.join().unwrap()?;
 
-    bin_reader_manager(result, t_count, output_path)?;
+    bin_reader_manager(result, cli.avail_processors as usize, &cli.output_path)?;
 
     Ok(())
 }
 
 fn spawn_graph_processor(
     protein_graphs: Receiver<Result<ProteinGraph>>,
-    tx_entry: Sender<(u64, Entry)>,
+    tx_entry: Sender<Entry>,
     intervals: Arc<Vec<Interval>>,
     max_vars: u8,
     t_count: usize,
-    do_hash: bool,
     limit: usize,
-    n_splits: usize
+    n_splits: u8,
+    max_depth:u8
 
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     
@@ -105,9 +86,9 @@ fn spawn_graph_processor(
                 intervals.clone(),
                 max_vars,
                 t_count,
-                do_hash,
                 limit,
-                n_splits
+                n_splits,
+                max_depth
             )?;
         }
 
@@ -119,13 +100,13 @@ fn spawn_graph_processor(
 
 fn process_protein_graph(
     protein_graph: ProteinGraph,
-    tx_entry: Sender<(u64, Entry)>,
+    tx_entry: Sender<Entry>,
     intervals: Arc<Vec<Interval>>,
     max_vars: u8,
     t_count: usize,
-    do_hash: bool,
     limit: usize,
-    n_splits: usize
+    n_splits: u8,
+    max_depth: u8
 ) -> Result<()> {
 
     let traversal_data = Arc::new(protein_graph.traversal_data);
@@ -133,32 +114,29 @@ fn process_protein_graph(
 
 
     spawn_workers(
-    traversal_data,
-    meta_data,
-    &intervals,
-    max_vars,
-    tx_entry.clone(),
-    t_count,
-    do_hash,
-    limit,
-    n_splits,
-)?;
+        traversal_data,
+        meta_data,
+        &intervals,
+        max_vars,
+        tx_entry.clone(),
+        t_count,
+        limit,
+        n_splits,
+        max_depth
+    )?;
     Ok(())
 }
-
-use rayon::ThreadPoolBuilder;
-use rayon::scope;
 
 pub fn spawn_workers(
     traversal_data: Arc<TraversalData>,
     meta: Arc<MetaData>,
     intervals: &[Interval],
     max_vars: u8,
-    tx_entry: Sender<(u64, Entry)>,
+    tx_entry: Sender<Entry>,
     num_threads: usize,
-    do_hash: bool,
     limit: usize,
-    n_splits: usize,
+    n_splits: u8,
+    max_depth: u8
 ) -> Result<()> {
     let pool = ThreadPoolBuilder::new()
         .num_threads(num_threads)
@@ -178,9 +156,9 @@ pub fn spawn_workers(
                         meta,
                         tx_entry,
                         interval,
-                        0, // depth
+                        0,
+                        max_depth,
                         max_vars,
-                        do_hash,
                         limit,
                         n_splits,
                     );
@@ -195,18 +173,18 @@ pub fn spawn_workers(
 fn traverse_rayon(
     data: Arc<TraversalData>,
     meta: Arc<MetaData>,
-    tx_entry: Sender<(u64, Entry)>,
+    tx_entry: Sender<Entry>,
     interval: Interval,
-    depth: u16,
+    depth: u8,
+    max_depth: u8,
     max_vars: u8,
-    do_hash: bool,
     limit: usize,
-    n_splits: usize,
+    n_splits: u8,
 ) {
     // -------------------------
     // DEPTH TERMINATION
     // -------------------------
-    if depth >= MAX_DEPTH {
+    if depth >= max_depth {
         return;
     }
 
@@ -226,8 +204,8 @@ fn traverse_rayon(
                         tx_entry,
                         sub,
                         depth + 1,
+                        max_depth,
                         max_vars,
-                        do_hash,
                         limit,
                         n_splits,
                     );
@@ -243,12 +221,7 @@ fn traverse_rayon(
                 let trace = state.reconstruct_trace(state_id);
 
                 if let Ok(Some(entry)) = meta.build_peptide(&trace) {
-                    let mut pep_hash = 0;
-                    if do_hash {
-                        pep_hash = xxh64(entry.pep.as_bytes(), SEED);
-                    }
-
-                    let _ = tx_entry.send((pep_hash, entry));
+                    let _ = tx_entry.send(entry);
                 }
             }
         }

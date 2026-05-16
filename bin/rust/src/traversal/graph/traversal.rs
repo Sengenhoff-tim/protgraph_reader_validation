@@ -1,15 +1,6 @@
-use::anyhow::{Result, anyhow};
-use crossbeam_channel::Sender;
-use crossbeam_deque::Injector;
-use xxhash_rust::xxh64::xxh64;
-use std::{mem::take, sync::{Arc, atomic::{AtomicUsize, Ordering}}};
-use crate::traversal::{Entry, Interval, MetaData, Pdbs, TraversalState, TraversalStatus};
-
-const SEED: u64 = 0xC0111DE;
-
-const N_SPLITS: usize = 4;
-const MAX_DEPTH: u8 = 4;
-
+use::anyhow::{Result};
+use std::{mem::take};
+use crate::traversal::{Interval, Pdbs, TraversalState, TraversalStatus};
 
 pub struct TraversalData {
     pub nodes: Box<[u32]>,
@@ -90,94 +81,6 @@ impl TraversalData {
         }
         Ok(TraversalStatus::Complete(traversal_state))
     }
-
-    /* 
-    pub fn traverse_and_stream_traces(
-        &self,
-        interval: &Interval,
-        max_vars: u8,
-        tx: &Sender<Vec<(u32, u32)>>,
-    ) -> anyhow::Result<()> {
-        let traversal_state = &self.traverse_varcount(interval, max_vars)?;
-
-        let final_states =
-            &traversal_state.states_at_node[(self.nodes.len() - 1) as usize];
-
-        for &state_id in final_states {
-            let trace = traversal_state.reconstruct_trace(state_id);
-
-            tx.send(trace)
-                .map_err(|e| anyhow!("channel send failed: {e}"))?;
-        }
-
-        Ok(())
-    }
-    */
-
-    pub fn traverse_and_stream_traces(
-    &self,
-    interval: &Interval,
-    max_vars: u8,
-    tx: &Sender<Vec<(u32, u32)>>,
-    limit: usize
-) -> anyhow::Result<()> {
-    self.traverse_and_stream_traces_inner(
-        interval,
-        max_vars,
-        tx,
-        0, 
-        limit// depth starts here
-    )
-}
-
-fn traverse_and_stream_traces_inner(
-    &self,
-    interval: &Interval,
-    max_vars: u8,
-    tx: &Sender<Vec<(u32, u32)>>,
-    depth: u8,
-    limit: usize
-) -> anyhow::Result<()> {
-    // =========================
-    // HARD TERMINATION CONDITION
-    // =========================
-    if depth >= MAX_DEPTH {
-        // placeholder (you said you will log here later)
-        return Ok(());
-    }
-
-    let traversal_state = self.traverse_varcount(interval, max_vars, limit)?;
-
-    match traversal_state {
-        TraversalStatus::Overflow() => {
-            let splits = interval.split(N_SPLITS);
-
-            for sub in splits {
-                self.traverse_and_stream_traces_inner(
-                    &sub,
-                    max_vars,
-                    tx,
-                    depth + 1,
-                    limit
-                )?;
-            }
-        }
-
-        TraversalStatus::Complete(state) => {
-            let final_states =
-                &state.states_at_node[(self.nodes.len() - 1) as usize];
-
-            for &state_id in final_states {
-                let trace = state.reconstruct_trace(state_id);
-
-                tx.send(trace)
-                    .map_err(|e| anyhow!("channel send failed: {e}"))?;
-            }
-        }
-    }
-
-    Ok(())
-}
 
 #[inline]
 pub fn has_overlapping_interval(

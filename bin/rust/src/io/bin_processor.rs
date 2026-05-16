@@ -3,14 +3,13 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use std::fs;
 use std::io::{Write};
 use std::{collections::HashMap, path::PathBuf};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bincode::config::standard;
 use std::fs::File;
-use std::io::{BufReader, ErrorKind, Read};
+use std::io::{BufReader, ErrorKind, Read, BufWriter};
 use std::path::Path;
 
 use crate::traversal::{Entry, EntryMeta};
-use crate::io::tmp_files::WriterManagerResult;
 
 fn process_shard(
     entries: Vec<Entry>,
@@ -36,11 +35,11 @@ fn process_shard(
 }
 
 fn spawn_dispatcher(
-    result: WriterManagerResult,
+    result: Vec<PathBuf>,
     tx: Sender<Vec<Entry>>,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn(move || -> Result<()> {
-        for path in result.filenames {
+        for path in result {
             let entries = read_entries_binary(&path)
                 .with_context(|| {
                     format!(
@@ -72,9 +71,9 @@ fn spawn_worker(
 }
 
 pub fn bin_reader_manager(
-    result: WriterManagerResult,
+    result: Vec<PathBuf>,
     num_threads: usize,
-    outdir: PathBuf
+    outdir: &PathBuf
 ) -> Result<()> {
     let (tx_in, rx_in) = bounded::<Vec<Entry>>(2);
 
@@ -95,18 +94,51 @@ pub fn bin_reader_manager(
 
     dispatcher_handles
         .join()
-        .map_err(|_| anyhow::anyhow!("dispatcher panicked"))??;
+        .map_err(|_| anyhow!("dispatcher panicked"))??;
 
     for h in worker_handles {
-        h.join().map_err(|_| anyhow::anyhow!("Worker thread panicked"))??;
+        h.join().map_err(|_| anyhow!("Worker thread panicked"))??;
     }
     
-    writer_handle.join().map_err(|_| anyhow::anyhow!("Writer thread panicked"))??;
+    writer_handle.join().map_err(|_| anyhow!("Writer thread panicked"))??;
     
 
     Ok(())
 }
+fn spawn_writers(
+    rx_out: Receiver<(String, Vec<EntryMeta>)>,
+    outdir: &PathBuf,
+) -> std::thread::JoinHandle<Result<()>> {
+    std::thread::spawn({
+        let outdir = outdir.clone();
 
+        move || -> Result<()> {
+            fs::create_dir_all(&outdir)?;
+
+            let seq_file = File::create(outdir.join("peptides.fasta"))?;
+            let meta_file = File::create(outdir.join("metadata.csv"))?;
+
+            let mut seq_writer = BufWriter::new(seq_file);
+            let mut meta_writer = BufWriter::new(meta_file);
+
+            writeln!(
+                meta_writer,
+                "ID,ACC,SPOS,EPOS,MSSCLVG,QUALIFIERS"
+            )?;
+
+            for (id, (sequence, metas)) in rx_out.iter().enumerate() {
+                write_sequences(&mut seq_writer, id, &sequence)?;
+                write_meta(&mut meta_writer, id, &metas)?;
+            }
+
+            seq_writer.flush()?;
+            meta_writer.flush()?;
+
+            Ok(())
+        }
+    })
+}
+/* 
 fn spawn_writers(
     rx_out: Receiver<(String, Vec<EntryMeta>)>,
     outdir: PathBuf
@@ -132,11 +164,11 @@ fn spawn_writers(
         Ok(())
     })
 }
-
+*/
 
 fn write_sequences(
     writer: &mut std::io::BufWriter<std::fs::File>,
-    id: u128,
+    id: usize,
     sequence: &str,
 ) -> Result<()> {
     writeln!(
@@ -150,7 +182,7 @@ fn write_sequences(
 
 fn write_meta(
     writer: &mut std::io::BufWriter<std::fs::File>,
-    id: u128,
+    id: usize,
     metas: &[EntryMeta],
 ) -> Result<()>{
     for meta in metas{

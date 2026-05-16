@@ -1,6 +1,7 @@
 /.nextflow
 /.nextflow.log*
 results/
+results_dedub/
 work/
 bin/rust/target/
 Cargo.lock

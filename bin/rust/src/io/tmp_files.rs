@@ -10,47 +10,38 @@ use std::{
     thread::{self, JoinHandle},
 };
 use bincode::{encode_to_vec, config::standard};
+use xxhash_rust::xxh64::xxh64;
 
 use crate::traversal::Entry;
 
-/* 
-let bits = required_hash_bits(
-    500_000_000,             // entries
-    80,                      // avg serialized size
-    2 * 1024 * 1024 * 1024, // max_memory
-    2.5,                     // in-memory overhead
-    2.0,                     // skew factor
-);
-*/
+const SEED: u64 = 0xC0111DE;
 
-fn required_hash_bits(
-    writer_params: &BinWriterParams
-) -> u32 {
-    let total_bytes =
-        writer_params.total_entries as f64
-        * writer_params.avg_entry_size as f64
-        * writer_params.overhead
-        * writer_params.skew;
+#[cfg(unix)]
+fn get_sys_open_files() -> u32 {
+    use nix::sys::resource::{getrlimit, Resource};
 
-    let required_shards =
-        (total_bytes / writer_params.max_memory as f64).ceil() as u64;
-
-    required_shards
-        .max(1)
-        .next_power_of_two()
-        .trailing_zeros()
-}
-pub struct WriterManagerResult {
-    pub filenames: Vec<PathBuf>,
-    pub handles: LruCache<PathBuf, BufWriter<File>>,
+    match getrlimit(Resource::RLIMIT_NOFILE) {
+        Ok((soft, _)) => {
+            (soft / 2).clamp(64, 8192) as u32
+        }
+        Err(_) => 512,
+    }
 }
 
-///
-/// Dumb binary writer:
-///
-/// [u32 record_len LE]
-/// [bincode payload]
-///
+#[cfg(windows)]
+fn get_sys_open_files() -> u32 {
+    2048
+}
+
+fn hash_bits_for(target_shards: u32) -> u8 {
+
+    let shards = target_shards.next_power_of_two();
+
+    let bits = (usize::BITS - (shards - 1).leading_zeros()) as u8;
+
+    bits
+}
+
 fn write_entry_binary(
     writer: &mut BufWriter<File>,
     entry: &Entry,
@@ -79,102 +70,100 @@ fn open_writer(path: &Path) -> Result<BufWriter<File>> {
     Ok(BufWriter::new(file))
 }
 
-fn shard_filename(
-    out_dir: &Path,
-    shard_id: usize,
-) -> PathBuf {
-    out_dir.join(format!("shard_{shard_id:05}.bin"))
-}
-
-pub struct BinWriterParams{
-    pub total_entries: u64,
-    pub avg_entry_size: u64,
-    pub max_memory: u64,
-    pub overhead: f64,
-    pub skew: f64,
-    pub entry_channel_size: u64
-}
-///
-/// Spawn writer manager thread.
-///
-/// Returns:
-/// - Sender<(u64, Entry)>
-/// - JoinHandle<Result<WriterManagerResult>>
-///
 pub fn spawn_writer_manager(
     out_dir: impl AsRef<Path>,
-    params: BinWriterParams,
-    max_open_files: usize,
+    hash_bits: Option<u8>,
+    max_handles: Option<u32>,
+    avail_processors: u8
 ) -> Result<(
-    Sender<(u64, Entry)>,
-    JoinHandle<Result<WriterManagerResult>>,
+    Sender<Entry>,
+    JoinHandle<Result<Vec<PathBuf>>>,
 )> {
     let out_dir = out_dir.as_ref().to_path_buf();
 
     create_dir_all(&out_dir)
         .with_context(|| format!("failed to create {}", out_dir.display()))?;
 
-    let hash_bits = required_hash_bits(&params);
 
-    let (tx, rx) = crossbeam_channel::bounded::<(u64, Entry)>(params.entry_channel_size as usize);
+    let (tx, rx) = crossbeam_channel::bounded::<Entry>((avail_processors*2) as usize);
 
     let handle = thread::spawn(move || {
         writer_manager_thread(
             rx,
             out_dir,
             hash_bits,
-            max_open_files,
+            max_handles,
         )
     });
 
     Ok((tx, handle))
 }
 
+fn shard_filename(
+    out_dir: &Path,
+    hash: u64,
+    shard_id: usize,
+    use_subdirs: bool,
+) -> PathBuf {
+    let filename = format!("{shard_id:05x}.bin");
+
+    if use_subdirs {
+        let dir = format!("{:02x}", (hash >> 56) & 0xff);
+
+        out_dir.join(dir).join(filename)
+    } else {
+        out_dir.join(filename)
+    }
+}
+
 fn writer_manager_thread(
-    rx: Receiver<(u64, Entry)>,
+    rx: Receiver<Entry>,
     out_dir: PathBuf,
-    hash_bits: u32,
-    max_open_files: usize,
-) -> Result<WriterManagerResult> {
-    
-    let shard_mask = (1usize << hash_bits) - 1;
+    hash_bits: Option<u8>,
+    max_handles: Option<u32>,
+) -> Result<Vec<PathBuf>> {
+
+    // determine maximum file handles if not set
+    let max_h = max_handles.unwrap_or_else(|| {
+        (get_sys_open_files() * 7) / 10
+    });
+
+    // determine hash bits if not set
+    let h_bits = hash_bits.unwrap_or_else(|| {
+        hash_bits_for(max_h / 2)
+    });
+
+    let shard_mask = (1usize << h_bits) - 1;
+
+    // enable directory fanout once 256 shards are surpassed
+    let use_subdirs = h_bits > 8;
+
+    // lru for file handles
+    let mut writers: LruCache<PathBuf, BufWriter<File>> =
+        LruCache::new(
+            NonZeroUsize::new(max_h as usize)
+                .context("max_open_files must be > 0")?,
+        );
 
     // shard_id -> filename
     let mut filenames: HashMap<usize, PathBuf> = HashMap::new();
 
-    // filename -> writer
-    let mut writers: LruCache<PathBuf, BufWriter<File>> =
-        LruCache::new(
-            NonZeroUsize::new(max_open_files)
-                .context("max_open_files must be > 0")?,
-        );
+    let tmp_path = &out_dir.join("tmp");
 
     while let Ok(entry) = rx.recv() {
-        let shard_id =
-            (entry.0 as usize) & shard_mask;
+        let path = resolve_path(
+            &entry,
+            &tmp_path,
+            shard_mask,
+            use_subdirs,
+            &mut filenames,
+        );
 
-        let path = filenames
-            .entry(shard_id)
-            .or_insert_with(|| shard_filename(&out_dir, shard_id))
-            .clone();
+        ensure_parent_dir(&path)?;
 
-        // open writer if absent
-        if !writers.contains(&path) {
-            let writer = open_writer(&path)?;
+        let writer = get_writer(&mut writers, &path)?;
 
-            // evicted handles get flushed before drop
-            if let Some((_, mut evicted)) =
-                writers.push(path.clone(), writer)
-            {
-                evicted.flush()?;
-            }
-        }
-
-        let writer = writers
-            .get_mut(&path)
-            .context("writer disappeared unexpectedly")?;
-
-        write_entry_binary(writer, &entry.1)?;
+        write_entry_binary(writer, &entry)?;
     }
 
     // flush remaining handles
@@ -187,8 +176,52 @@ fn writer_manager_thread(
 
     files.sort();
 
-    Ok(WriterManagerResult {
-        filenames: files,
-        handles: writers,
-    })
+    Ok(files)
+}
+
+fn resolve_path(
+    entry: &Entry,
+    out_dir: &Path,
+    shard_mask: usize,
+    use_subdirs: bool,
+    filenames: &mut HashMap<usize, PathBuf>,
+) -> PathBuf {
+    let hash = xxh64(entry.pep.as_bytes(), SEED);
+    let shard_id = (hash as usize) & shard_mask;
+
+    filenames
+        .entry(shard_id)
+        .or_insert_with(|| {
+            shard_filename(
+                out_dir,
+                hash,
+                shard_id,
+                use_subdirs,
+            )
+        })
+        .clone()
+}
+
+fn ensure_parent_dir(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    Ok(())
+}
+
+fn get_writer<'a>(
+    writers: &'a mut LruCache<PathBuf, BufWriter<File>>,
+    path: &PathBuf,
+) -> Result<&'a mut BufWriter<File>> {
+    if !writers.contains(path) {
+        let writer = open_writer(path)?;
+
+        if let Some((_, mut evicted)) = writers.push(path.clone(), writer) {
+            evicted.flush()?;
+        }
+    }
+
+    writers
+        .get_mut(path)
+        .context("writer disappeared unexpectedly")
 }

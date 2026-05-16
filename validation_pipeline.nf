@@ -112,14 +112,17 @@ process READERRUST {
 
     script:
     p_count = Runtime.runtime.availableProcessors()
+    mem = 7
     """
     precursor_specifc_fasta \\
-        -g ${database_bpcsr} \\
-        -q ${rust_queries_csv} \\
-        -x ${max_vars} \\
+        --graphs ${database_bpcsr} \\
+        --queries ${rust_queries_csv} \\
+        --max_vars ${max_vars} \\
         -o ./${prefix}_output \\
-        -t ${p_count} \\
-        -i 50 \\
+        --avail_processors ${p_count} \\
+        -i 100 \\
+        --avail_memory ${mem} \\
+        --hash_bits 3 \\
         ${dedub}
     """
 }

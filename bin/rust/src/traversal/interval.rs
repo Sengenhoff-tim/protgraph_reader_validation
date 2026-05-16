@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use anyhow::{Result};
 
-// A helper struct for intervals of protein weights. Inclusive on both ends: [lower, upper]
+// A helper struct for intervals of protein weights in Da. Inclusive on both ends: [lower, upper]
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub struct Interval {
@@ -23,8 +23,8 @@ impl Interval {
 }
 
 impl Interval {
-    pub fn split(&self, n: usize) -> Vec<Interval> {
-        let mut out = Vec::with_capacity(n);
+    pub fn split(&self, n: u8) -> Vec<Interval> {
+        let mut out = Vec::with_capacity(n as usize);
 
         if n == 0 || self.lower > self.upper {
             return out;
@@ -78,39 +78,6 @@ pub trait IntervalVecExt {
     fn to_chunks(self, chunk_size: i64) -> Result<Vec<Interval>>;
 }
 
-/*impl IntervalVecExt for Vec<Interval> {
-    fn to_chunks(mut self, chunk_size: i64) -> Result<Vec<Interval>> {
-        if self.is_empty() {
-            return Ok(vec![]);
-        }
-
-        if chunk_size <= 0 {
-            bail!("chunk_size must be positive, got {}", chunk_size);
-        }
-
-        // O(n log n)
-        self.sort_by_key(|i| i.lower);
-
-        let mut result = Vec::new();
-        let mut iter = self.into_iter();
-
-        let mut current = iter.next()
-            .expect("checked non-empty vec");
-
-        for interval in iter {
-            if current.overlaps(&interval) {
-                current.merge_with(&interval);
-            } else {
-                result.extend(current.split_into_chunks(chunk_size));
-                current = interval;
-            }
-        }
-
-        result.extend(current.split_into_chunks(chunk_size));
-
-        Ok(result)
-    }
-} */
 impl IntervalVecExt for Vec<Interval> {
     fn to_chunks(mut self, chunk_size: i64) -> Result<Vec<Interval>> {
         if self.is_empty() {
