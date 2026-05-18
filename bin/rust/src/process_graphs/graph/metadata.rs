@@ -36,14 +36,15 @@ impl MetaData {
 
         // final edge
         if let Some(last) = trace.last()
-            && let Some(edge) = last.1 {
-                let q = self.qualifiers.get_str(edge as usize);
+            && let Some(edge) = last.1
+        {
+            let q = self.qualifiers.get_str(edge as usize);
 
-                if !q.is_empty() {
-                    fwd_res.qualifiers.push_str(q);
-                    fwd_res.qualifiers.push(',');
-                }
+            if !q.is_empty() {
+                fwd_res.qualifiers.push_str(q);
+                fwd_res.qualifiers.push(',');
             }
+        }
 
         let mut epos: Option<u16> = None;
 

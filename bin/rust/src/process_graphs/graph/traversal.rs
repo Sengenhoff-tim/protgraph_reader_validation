@@ -29,7 +29,9 @@ impl TraversalData {
         let mut traversal_state = SubgraphForQuery::new(self.nodes.len(), max_vars, limit);
 
         // subgraph is build in a single forward pass
-        for (node_idx, &(edge_begin, edge_end)) in edge_ranges.iter().enumerate().take(self.nodes.len() - 1) {
+        for (node_idx, &(edge_begin, edge_end)) in
+            edge_ranges.iter().enumerate().take(self.nodes.len() - 1)
+        {
             if traversal_state.states_at_node[node_idx].is_empty() {
                 continue;
             }

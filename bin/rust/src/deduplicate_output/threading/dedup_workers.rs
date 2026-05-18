@@ -25,10 +25,7 @@ fn process_shard(
     let mut unique_entries: HashMap<String, Vec<BinEntryMeta>> = HashMap::new();
 
     for e in entries {
-        unique_entries
-            .entry(e.seq)
-            .or_default()
-            .push(e.meta);
+        unique_entries.entry(e.seq).or_default().push(e.meta);
     }
 
     for (key, metas) in unique_entries {

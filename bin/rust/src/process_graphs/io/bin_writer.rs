@@ -29,7 +29,6 @@ pub fn open_writer(path: &Path) -> Result<BufWriter<File>> {
         .create(true)
         .append(true)
         .read(true)
-        
         .open(path)?;
 
     Ok(BufWriter::new(file))

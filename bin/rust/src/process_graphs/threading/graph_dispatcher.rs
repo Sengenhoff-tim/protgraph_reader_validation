@@ -21,7 +21,7 @@ pub fn spawn_graph_dispatcher(
     intervals: Arc<Vec<Interval>>,
     t_count: usize,
     log_writer: BufWriter<File>,
-    worker_args: WorkerArgs
+    worker_args: WorkerArgs,
 ) -> Result<DispatcherHandle> {
     let handle = thread::spawn(move || -> anyhow::Result<BufWriter<File>> {
         let mut log_writer = log_writer;
@@ -40,7 +40,7 @@ pub fn spawn_graph_dispatcher(
                 tx_entry.clone(),
                 t_count,
                 Arc::clone(&incomplete),
-                Arc::clone(&args)
+                Arc::clone(&args),
             )?;
 
             if incomplete.load(std::sync::atomic::Ordering::Relaxed) {

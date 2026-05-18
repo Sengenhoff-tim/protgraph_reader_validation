@@ -9,11 +9,11 @@ use std::{
 use anyhow::{Context, Result};
 use crossbeam_channel::bounded;
 
-use crate::{parameters::Config, process_graphs::threading::graph_workers::WorkerArgs};
 use crate::process_graphs::{
     graph::ProteinGraph,
     threading::{spawn_graph_dispatcher, spawn_protein_graph_reader, spawn_writer_manager},
 };
+use crate::{parameters::Config, process_graphs::threading::graph_workers::WorkerArgs};
 
 const GB: u64 = 1024 * 1024 * 1024;
 const LOG_FILE_NAME: &str = "logs.csv";
@@ -46,11 +46,11 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     //process graphs
     let intervals = Arc::new(config.intervals);
 
-    let worker_args = WorkerArgs{
+    let worker_args = WorkerArgs {
         max_vars: cli.max_vars,
         limit: (cli.avail_memory as u64 * GB) as usize,
         n_splits: cli.job_splits,
-        max_depth: cli.job_split_depth
+        max_depth: cli.job_split_depth,
     };
 
     let graph_handle = spawn_graph_dispatcher(
@@ -59,7 +59,7 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
         intervals,
         cli.avail_processors as usize,
         log_writer,
-        worker_args
+        worker_args,
     )?;
 
     graph_handle

@@ -28,7 +28,8 @@ pub fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Pro
         accessions.push(read_cstring(reader).context("reading accession")?);
     }
 
-    let primary_accession = accessions.first()
+    let primary_accession = accessions
+        .first()
         .cloned()
         .unwrap_or_else(|| "unknown".to_string());
 

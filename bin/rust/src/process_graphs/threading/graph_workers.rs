@@ -26,7 +26,7 @@ pub fn spawn_workers(
     tx_entry: Sender<BinEntry>,
     num_threads: usize,
     incomplete: Arc<AtomicBool>,
-    args: Arc<WorkerArgs>
+    args: Arc<WorkerArgs>,
 ) -> Result<()> {
     let traversal_data = Arc::new(protein_graph.traversal_data);
     let meta_data = Arc::new(protein_graph.meta_data);
@@ -46,15 +46,7 @@ pub fn spawn_workers(
                 let args = Arc::clone(&args);
 
                 s.spawn(move |_| {
-                    traversal_thread(
-                        data, 
-                        meta, 
-                        tx_entry, 
-                        interval,
-                        incomplete,
-                        0,
-                        args
-                    );
+                    traversal_thread(data, meta, tx_entry, interval, incomplete, 0, args);
                 });
             }
         });
@@ -70,7 +62,7 @@ fn traversal_thread(
     interval: Interval,
     incomplete: Arc<AtomicBool>,
     depth: u8,
-    args: Arc<WorkerArgs>
+    args: Arc<WorkerArgs>,
 ) {
     // depth termination
     if depth >= args.max_depth {
@@ -90,21 +82,13 @@ fn traversal_thread(
                 let args = Arc::clone(&args);
 
                 rayon::spawn(move || {
-                    traversal_thread(
-                        data,
-                        meta,
-                        tx_entry,
-                        sub,
-                        incomplete,
-                        depth + 1,
-                        args
-                    );
+                    traversal_thread(data, meta, tx_entry, sub, incomplete, depth + 1, args);
                 });
             }
         }
 
         Ok(TraversalStatus::Complete(state)) => {
-            let final_states = &state.states_at_node[data.nodes.len() - 1 ];
+            let final_states = &state.states_at_node[data.nodes.len() - 1];
 
             for &state_id in final_states {
                 let trace = state.reconstruct_trace(state_id);
