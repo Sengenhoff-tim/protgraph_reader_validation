@@ -1,3 +1,5 @@
+type GraphWriterHandle = (Sender<BinEntry>, JoinHandle<Result<Vec<PathBuf>>>);
+
 use std::{
     collections::HashMap,
     fs::File,
@@ -21,7 +23,7 @@ pub fn spawn_writer_manager(
     hash_bits: Option<u8>,
     max_handles: Option<u32>,
     avail_processors: u8,
-) -> Result<(Sender<BinEntry>, JoinHandle<Result<Vec<PathBuf>>>)> {
+) -> Result<GraphWriterHandle> {
     let out_dir = out_dir.to_path_buf();
 
     let (tx, rx) = crossbeam_channel::bounded::<BinEntry>((avail_processors * 2) as usize);

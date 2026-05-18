@@ -9,7 +9,7 @@ use std::{
 use anyhow::{Context, Result};
 use crossbeam_channel::bounded;
 
-use crate::parameters::Config;
+use crate::{parameters::Config, process_graphs::threading::graph_workers::WorkerArgs};
 use crate::process_graphs::{
     graph::ProteinGraph,
     threading::{spawn_graph_dispatcher, spawn_protein_graph_reader, spawn_writer_manager},
@@ -46,16 +46,20 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     //process graphs
     let intervals = Arc::new(config.intervals);
 
+    let worker_args = WorkerArgs{
+        max_vars: cli.max_vars,
+        limit: (cli.avail_memory as u64 * GB) as usize,
+        n_splits: cli.job_splits,
+        max_depth: cli.job_split_depth
+    };
+
     let graph_handle = spawn_graph_dispatcher(
         rx_graph,
         tx_entry,
         intervals,
-        cli.max_vars,
         cli.avail_processors as usize,
-        (cli.avail_memory as u64 * GB) as usize,
-        cli.job_splits,
-        cli.job_split_depth,
         log_writer,
+        worker_args
     )?;
 
     graph_handle

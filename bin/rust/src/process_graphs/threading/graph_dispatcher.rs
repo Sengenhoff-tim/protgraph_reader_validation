@@ -1,3 +1,5 @@
+type DispatcherHandle = JoinHandle<anyhow::Result<BufWriter<File>>>;
+
 use std::{
     fs::File,
     io::{BufWriter, Write},
@@ -9,7 +11,7 @@ use std::{
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 
-use crate::process_graphs::threading::graph_workers::spawn_workers;
+use crate::process_graphs::threading::graph_workers::{WorkerArgs, spawn_workers};
 use crate::process_graphs::{graph::ProteinGraph, utilities::Interval};
 use crate::shared::BinEntry;
 
@@ -17,15 +19,13 @@ pub fn spawn_graph_dispatcher(
     protein_graphs: Receiver<Result<ProteinGraph>>,
     tx_entry: Sender<BinEntry>,
     intervals: Arc<Vec<Interval>>,
-    max_vars: u8,
     t_count: usize,
-    limit: usize,
-    n_splits: u8,
-    max_depth: u8,
     log_writer: BufWriter<File>,
-) -> anyhow::Result<JoinHandle<anyhow::Result<BufWriter<File>>>> {
+    worker_args: WorkerArgs
+) -> Result<DispatcherHandle> {
     let handle = thread::spawn(move || -> anyhow::Result<BufWriter<File>> {
         let mut log_writer = log_writer;
+        let args = Arc::new(worker_args);
 
         for graph in protein_graphs {
             let protein_graph = graph?;
@@ -37,13 +37,10 @@ pub fn spawn_graph_dispatcher(
             spawn_workers(
                 protein_graph,
                 intervals.clone(),
-                max_vars,
                 tx_entry.clone(),
                 t_count,
-                limit,
-                n_splits,
-                max_depth,
                 Arc::clone(&incomplete),
+                Arc::clone(&args)
             )?;
 
             if incomplete.load(std::sync::atomic::Ordering::Relaxed) {

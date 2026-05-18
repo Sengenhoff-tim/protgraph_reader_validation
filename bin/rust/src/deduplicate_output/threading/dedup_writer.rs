@@ -4,17 +4,17 @@ use std::fs;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::deduplicate_output::io::{write_meta, write_sequences};
 use crate::shared::BinEntryMeta;
 
 pub fn spawn_writers(
     rx_out: Receiver<(String, Vec<BinEntryMeta>)>,
-    outdir: &PathBuf,
+    outdir: &Path,
 ) -> std::thread::JoinHandle<Result<()>> {
     std::thread::spawn({
-        let outdir = outdir.clone();
+        let outdir = outdir.to_path_buf();
 
         move || -> Result<()> {
             fs::create_dir_all(&outdir)?;

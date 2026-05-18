@@ -13,16 +13,20 @@ use crate::process_graphs::{
 };
 use crate::shared::BinEntry;
 
+pub struct WorkerArgs {
+    pub max_vars: u8,
+    pub limit: usize,
+    pub n_splits: u8,
+    pub max_depth: u8,
+}
+
 pub fn spawn_workers(
     protein_graph: ProteinGraph,
     intervals: Arc<Vec<Interval>>,
-    max_vars: u8,
     tx_entry: Sender<BinEntry>,
     num_threads: usize,
-    limit: usize,
-    n_splits: u8,
-    max_depth: u8,
     incomplete: Arc<AtomicBool>,
+    args: Arc<WorkerArgs>
 ) -> Result<()> {
     let traversal_data = Arc::new(protein_graph.traversal_data);
     let meta_data = Arc::new(protein_graph.meta_data);
@@ -39,11 +43,17 @@ pub fn spawn_workers(
                 let meta = Arc::clone(&meta_data);
                 let tx_entry = tx_entry.clone();
                 let incomplete = Arc::clone(&incomplete);
+                let args = Arc::clone(&args);
 
                 s.spawn(move |_| {
                     traversal_thread(
-                        data, meta, tx_entry, interval, 0, max_depth, max_vars, limit, n_splits,
+                        data, 
+                        meta, 
+                        tx_entry, 
+                        interval,
                         incomplete,
+                        0,
+                        args
                     );
                 });
             }
@@ -58,28 +68,26 @@ fn traversal_thread(
     meta: Arc<MetaData>,
     tx_entry: Sender<BinEntry>,
     interval: Interval,
-    depth: u8,
-    max_depth: u8,
-    max_vars: u8,
-    limit: usize,
-    n_splits: u8,
     incomplete: Arc<AtomicBool>,
+    depth: u8,
+    args: Arc<WorkerArgs>
 ) {
     // depth termination
-    if depth >= max_depth {
+    if depth >= args.max_depth {
         incomplete.store(true, Relaxed);
         return;
     }
 
-    match data.traverse(&interval, max_vars, limit) {
+    match data.traverse(&interval, args.max_vars, args.limit) {
         Ok(TraversalStatus::Overflow()) => {
-            let splits = interval.split_to_n(n_splits);
+            let splits = interval.split_to_n(args.n_splits);
 
             for sub in splits {
                 let data = Arc::clone(&data);
                 let meta = Arc::clone(&meta);
                 let tx_entry = tx_entry.clone();
                 let incomplete = Arc::clone(&incomplete);
+                let args = Arc::clone(&args);
 
                 rayon::spawn(move || {
                     traversal_thread(
@@ -87,19 +95,16 @@ fn traversal_thread(
                         meta,
                         tx_entry,
                         sub,
-                        depth + 1,
-                        max_depth,
-                        max_vars,
-                        limit,
-                        n_splits,
                         incomplete,
+                        depth + 1,
+                        args
                     );
                 });
             }
         }
 
         Ok(TraversalStatus::Complete(state)) => {
-            let final_states = &state.states_at_node[((data.nodes.len() - 1))];
+            let final_states = &state.states_at_node[data.nodes.len() - 1 ];
 
             for &state_id in final_states {
                 let trace = state.reconstruct_trace(state_id);

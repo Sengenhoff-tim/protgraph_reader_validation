@@ -78,8 +78,8 @@ pub fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Pro
 
     // Cleaved (CL): n_edges bytes -> bool
     let mut cleaved = vec![false; n_edges];
-    for i in 0..n_edges {
-        cleaved[i] = reader.read_u8().context(format!(
+    for item in cleaved.iter_mut().take(n_edges) {
+        *item = reader.read_u8().context(format!(
             "reading cleaved for accession '{}'",
             primary_accession
         ))? != 0;

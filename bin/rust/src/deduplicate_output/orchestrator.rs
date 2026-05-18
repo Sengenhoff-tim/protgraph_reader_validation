@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use crossbeam_channel::bounded;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::deduplicate_output::threading::{spawn_dispatcher, spawn_worker, spawn_writers};
 use crate::shared::{BinEntry, BinEntryMeta};
@@ -8,7 +8,7 @@ use crate::shared::{BinEntry, BinEntryMeta};
 const CHANNEL_CAPACITY_IN: usize = 2;
 const CHANNEL_CAPACITY_OUT_BASE: usize = 10;
 
-pub fn dedup_bin_files(result: Vec<PathBuf>, num_threads: usize, outdir: &PathBuf) -> Result<()> {
+pub fn dedup_bin_files(result: Vec<PathBuf>, num_threads: usize, outdir: &Path) -> Result<()> {
     let (tx_in, rx_in) = bounded::<Vec<BinEntry>>(CHANNEL_CAPACITY_IN);
     let (tx_out, rx_out) =
         bounded::<(String, Vec<BinEntryMeta>)>(CHANNEL_CAPACITY_OUT_BASE.min(num_threads * 2));
