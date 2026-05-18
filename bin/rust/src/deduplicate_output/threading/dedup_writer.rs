@@ -1,13 +1,13 @@
+use anyhow::Result;
 use crossbeam_channel::Receiver;
 use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use anyhow::Result;
 use std::fs::File;
 use std::io::BufWriter;
+use std::io::Write;
+use std::path::PathBuf;
 
-use crate::shared::BinEntryMeta;
 use crate::deduplicate_output::io::{write_meta, write_sequences};
+use crate::shared::BinEntryMeta;
 
 pub fn spawn_writers(
     rx_out: Receiver<(String, Vec<BinEntryMeta>)>,
@@ -25,10 +25,7 @@ pub fn spawn_writers(
             let mut seq_writer = BufWriter::new(seq_file);
             let mut meta_writer = BufWriter::new(meta_file);
 
-            writeln!(
-                meta_writer,
-                "ID,ACC,SPOS,EPOS,MSSCLVG,QUALIFIERS"
-            )?;
+            writeln!(meta_writer, "ID,ACC,SPOS,EPOS,MSSCLVG,QUALIFIERS")?;
 
             for (id, (sequence, metas)) in rx_out.iter().enumerate() {
                 write_sequences(&mut seq_writer, id, &sequence)?;

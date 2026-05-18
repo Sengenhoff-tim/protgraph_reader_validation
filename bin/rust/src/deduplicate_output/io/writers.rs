@@ -1,7 +1,4 @@
-use std::{
-    io::Write,
-    fs::File,
-};
+use std::{fs::File, io::Write};
 
 use anyhow::Result;
 
@@ -12,12 +9,7 @@ pub fn write_sequences(
     id: usize,
     sequence: &str,
 ) -> Result<()> {
-    writeln!(
-        writer,
-        ">pg|{}\n{}",
-        id,
-        insert_newlines(sequence)
-    )?;
+    writeln!(writer, ">pg|{}\n{}", id, insert_newlines(sequence))?;
     Ok(())
 }
 
@@ -25,21 +17,22 @@ pub fn write_meta(
     writer: &mut std::io::BufWriter<File>,
     id: usize,
     metas: &[BinEntryMeta],
-) -> Result<()>{
-    for meta in metas{
-        let spos = meta.spos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-        let epos = meta.epos.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+) -> Result<()> {
+    for meta in metas {
+        let spos = meta
+            .spos
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "?".to_string());
+        let epos = meta
+            .epos
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "?".to_string());
         let qualifiers = meta.qualifiers.replace(",", "|");
         writeln!(
-        writer,
-        "{},{},{},{},{},[{}]",
-        id,
-        meta.acc,
-        spos,
-        epos,
-        meta.mssclvg,
-        qualifiers
-    )?;
+            writer,
+            "{},{},{},{},{},[{}]",
+            id, meta.acc, spos, epos, meta.mssclvg, qualifiers
+        )?;
     }
     Ok(())
 }
@@ -47,13 +40,13 @@ pub fn write_meta(
 fn insert_newlines(s: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = s.chars().collect();
-    
+
     for (i, chunk) in chars.chunks(60).enumerate() {
         if i > 0 {
             result.push('\n');
         }
         result.extend(chunk);
     }
-    
+
     result
 }

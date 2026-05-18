@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use crossbeam_channel::Sender;
 
-use crate::shared::BinEntry;
 use crate::deduplicate_output::io::read_entries_binary;
+use crate::shared::BinEntry;
 
 pub fn spawn_dispatcher(
     result: Vec<PathBuf>,
@@ -13,15 +13,9 @@ pub fn spawn_dispatcher(
     std::thread::spawn(move || -> Result<()> {
         for path in result {
             let entries = read_entries_binary(&path)
-                .with_context(|| {
-                    format!(
-                        "failed to read entries from {}",
-                        path.display()
-                    )
-                })?;
+                .with_context(|| format!("failed to read entries from {}", path.display()))?;
 
-            tx.send(entries)
-                .context("failed to send decoded entries")?;
+            tx.send(entries).context("failed to send decoded entries")?;
         }
 
         Ok(())

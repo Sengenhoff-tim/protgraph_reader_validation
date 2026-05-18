@@ -4,17 +4,11 @@ use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt};
 use crossbeam_channel::Sender;
 
-use crate::process_graphs::{
-    io::bpcsr_reader::read_single_graph,
-    graph::ProteinGraph,
-};
+use crate::process_graphs::{graph::ProteinGraph, io::bpcsr_reader::read_single_graph};
 
-pub fn spawn_protein_graph_reader<R: BufRead>(
-    rdr: R,
-    tx_protgraph: Sender<Result<ProteinGraph>>,
-) {
+pub fn spawn_protein_graph_reader<R: BufRead>(rdr: R, tx_protgraph: Sender<Result<ProteinGraph>>) {
     let mut rdr = rdr;
-    
+
     loop {
         let num_acc = match rdr.read_u32::<BigEndian>() {
             Ok(n) => n,

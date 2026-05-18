@@ -22,7 +22,6 @@ fn process_shard(
     entries: Vec<BinEntry>,
     tx_out: &Sender<(String, Vec<BinEntryMeta>)>,
 ) -> Result<()> {
-
     let mut unique_entries: HashMap<String, Vec<BinEntryMeta>> = HashMap::new();
 
     for e in entries {

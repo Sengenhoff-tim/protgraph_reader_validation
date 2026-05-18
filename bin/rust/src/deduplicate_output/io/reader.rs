@@ -9,13 +9,10 @@ use bincode::config::standard;
 
 use crate::shared::BinEntry;
 
-pub fn read_entries_binary(
-    path: impl AsRef<Path>,
-) -> Result<Vec<BinEntry>> {
+pub fn read_entries_binary(path: impl AsRef<Path>) -> Result<Vec<BinEntry>> {
     let path = path.as_ref();
 
-    let file = File::open(path)
-        .with_context(|| format!("failed to open {}", path.display()))?;
+    let file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
 
     let mut reader = BufReader::new(file);
 
@@ -30,11 +27,9 @@ pub fn read_entries_binary(
                 break;
             }
             Err(e) => {
-                return Err(e)
-                    .with_context(|| format!(
-                        "failed reading length prefix from {}",
-                        path.display()
-                    ));
+                return Err(e).with_context(|| {
+                    format!("failed reading length prefix from {}", path.display())
+                });
             }
         }
 
@@ -44,21 +39,10 @@ pub fn read_entries_binary(
 
         reader
             .read_exact(&mut bytes)
-            .with_context(|| format!(
-                "failed reading {} bytes from {}",
-                len,
-                path.display()
-            ))?;
+            .with_context(|| format!("failed reading {} bytes from {}", len, path.display()))?;
 
-        let (entry, _): (BinEntry, usize) =
-            bincode::decode_from_slice(
-                &bytes,
-                standard(),
-            )
-            .with_context(|| format!(
-                "failed to deserialize entry from {}",
-                path.display()
-            ))?;
+        let (entry, _): (BinEntry, usize) = bincode::decode_from_slice(&bytes, standard())
+            .with_context(|| format!("failed to deserialize entry from {}", path.display()))?;
 
         entries.push(entry);
     }

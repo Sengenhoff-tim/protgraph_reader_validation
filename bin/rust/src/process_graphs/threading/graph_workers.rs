@@ -7,11 +7,11 @@ use anyhow::Result;
 use crossbeam_channel::Sender;
 use rayon::{ThreadPoolBuilder, scope};
 
-use crate::shared::BinEntry;
 use crate::process_graphs::{
+    graph::{MetaData, ProteinGraph, TraversalData},
     utilities::{Interval, TraversalStatus},
-    graph::{MetaData, ProteinGraph, TraversalData}
 };
+use crate::shared::BinEntry;
 
 pub fn spawn_workers(
     protein_graph: ProteinGraph,
@@ -24,7 +24,6 @@ pub fn spawn_workers(
     max_depth: u8,
     incomplete: Arc<AtomicBool>,
 ) -> Result<()> {
-
     let traversal_data = Arc::new(protein_graph.traversal_data);
     let meta_data = Arc::new(protein_graph.meta_data);
 
@@ -43,16 +42,8 @@ pub fn spawn_workers(
 
                 s.spawn(move |_| {
                     traversal_thread(
-                        data,
-                        meta,
-                        tx_entry,
-                        interval,
-                        0,
-                        max_depth,
-                        max_vars,
-                        limit,
-                        n_splits,
-                        incomplete
+                        data, meta, tx_entry, interval, 0, max_depth, max_vars, limit, n_splits,
+                        incomplete,
                     );
                 });
             }
@@ -101,15 +92,14 @@ fn traversal_thread(
                         max_vars,
                         limit,
                         n_splits,
-                        incomplete
+                        incomplete,
                     );
                 });
             }
         }
 
         Ok(TraversalStatus::Complete(state)) => {
-            let final_states =
-                &state.states_at_node[(data.nodes.len() - 1) as usize];
+            let final_states = &state.states_at_node[(data.nodes.len() - 1) as usize];
 
             for &state_id in final_states {
                 let trace = state.reconstruct_trace(state_id);

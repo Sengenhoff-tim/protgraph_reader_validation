@@ -1,7 +1,7 @@
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
     thread,
     thread::JoinHandle,
 };
@@ -10,11 +10,8 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 
 use crate::process_graphs::threading::graph_workers::spawn_workers;
+use crate::process_graphs::{graph::ProteinGraph, utilities::Interval};
 use crate::shared::BinEntry;
-use crate::process_graphs::{
-    utilities::Interval,
-    graph::ProteinGraph,
-};
 
 pub fn spawn_graph_dispatcher(
     protein_graphs: Receiver<Result<ProteinGraph>>,
@@ -27,7 +24,6 @@ pub fn spawn_graph_dispatcher(
     max_depth: u8,
     log_writer: BufWriter<File>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<BufWriter<File>>>> {
-
     let handle = thread::spawn(move || -> anyhow::Result<BufWriter<File>> {
         let mut log_writer = log_writer;
 

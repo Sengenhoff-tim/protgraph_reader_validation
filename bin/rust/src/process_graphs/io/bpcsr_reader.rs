@@ -1,10 +1,10 @@
 use std::io::BufRead;
 
-use anyhow::{Result, anyhow, bail, Context};
+use anyhow::{Context, Result, anyhow, bail};
 use byteorder::{BigEndian, ReadBytesExt};
 
 use crate::process_graphs::{
-    graph::{ProteinGraph, MetaData, TraversalData},
+    graph::{MetaData, ProteinGraph, TraversalData},
     utilities::{Interval, Pdbs, StringTable},
 };
 
@@ -12,77 +12,106 @@ use crate::process_graphs::{
 pub fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<ProteinGraph> {
     let n_acc = num_acc as usize;
     // Read counts (big-endian)
-    let n_nodes = reader.read_u32::<BigEndian>().context("reading node count")? as usize;
-    let n_edges = reader.read_u32::<BigEndian>().context("reading edge count")? as usize;
-    let n_pdbs  = reader.read_u32::<BigEndian>().context("reading pdb count")? as usize;
+    let n_nodes = reader
+        .read_u32::<BigEndian>()
+        .context("reading node count")? as usize;
+    let n_edges = reader
+        .read_u32::<BigEndian>()
+        .context("reading edge count")? as usize;
+    let n_pdbs = reader
+        .read_u32::<BigEndian>()
+        .context("reading pdb count")? as usize;
 
     // Accessions (AC): num_acc NUL-terminated strings
     let mut accessions: Vec<String> = Vec::with_capacity(n_acc);
     for _ in 0..n_acc {
-        accessions.push(read_cstring(reader)
-            .context("reading accession")?);
+        accessions.push(read_cstring(reader).context("reading accession")?);
     }
 
-    let primary_accession = accessions.get(0).cloned().unwrap_or_else(|| "unknown".to_string());
+    let primary_accession = accessions
+        .get(0)
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string());
 
     // Nodes (NO): n_nodes u32 BE
-    let nodes = read_u32_vec(reader, n_nodes)
-        .context(format!("reading nodes for accession '{}'", primary_accession))?;
+    let nodes = read_u32_vec(reader, n_nodes).context(format!(
+        "reading nodes for accession '{}'",
+        primary_accession
+    ))?;
 
     // Edges (ED): n_edges u32 BE
-    let edges = read_u32_vec(reader, n_edges)
-        .context(format!("reading edges for accession '{}'", primary_accession))?;
+    let edges = read_u32_vec(reader, n_edges).context(format!(
+        "reading edges for accession '{}'",
+        primary_accession
+    ))?;
 
-    let sequences = build_from_reader(reader, n_nodes)
-        .context(format!("reading sequences for accession '{}'", primary_accession))?;
+    let sequences = build_from_reader(reader, n_nodes).context(format!(
+        "reading sequences for accession '{}'",
+        primary_accession
+    ))?;
 
     // Position (PO): n_nodes u16 BE
-    let position = read_u16_vec(reader, n_nodes)
-        .context(format!("reading position for accession '{}'", primary_accession))?;
+    let position = read_u16_vec(reader, n_nodes).context(format!(
+        "reading position for accession '{}'",
+        primary_accession
+    ))?;
 
     // Iso index (IS): n_nodes u8
-    let iso_index = read_u8_vec(reader, n_nodes)
-        .context(format!("reading iso index for accession '{}'", primary_accession))?;
+    let iso_index = read_u8_vec(reader, n_nodes).context(format!(
+        "reading iso index for accession '{}'",
+        primary_accession
+    ))?;
 
     // Iso position (IP): n_nodes u16 BE
-    let iso_position = read_u16_vec(reader, n_nodes)
-        .context(format!("reading iso position for accession '{}'", primary_accession))?;
+    let iso_position = read_u16_vec(reader, n_nodes).context(format!(
+        "reading iso position for accession '{}'",
+        primary_accession
+    ))?;
 
     // Mono weight (MW): n_nodes i64 BE
     let mut mono_weight = Vec::with_capacity(n_nodes);
     for _ in 0..n_nodes {
-        mono_weight.push(
-            reader.read_i64::<BigEndian>()
-                .context(format!("reading mono weight for accession '{}'", primary_accession))?
-        );
+        mono_weight.push(reader.read_i64::<BigEndian>().context(format!(
+            "reading mono weight for accession '{}'",
+            primary_accession
+        ))?);
     }
 
     // Cleaved (CL): n_edges bytes -> bool
     let mut cleaved = vec![false; n_edges];
     for i in 0..n_edges {
-        cleaved[i] = reader.read_u8().context(format!("reading cleaved for accession '{}'", primary_accession))? != 0;
+        cleaved[i] = reader.read_u8().context(format!(
+            "reading cleaved for accession '{}'",
+            primary_accession
+        ))? != 0;
     }
 
-    let qualifiers = build_from_reader(reader, n_edges)
-        .context(format!("reading qualifiers for accession '{}'", primary_accession))?;
+    let qualifiers = build_from_reader(reader, n_edges).context(format!(
+        "reading qualifiers for accession '{}'",
+        primary_accession
+    ))?;
 
     // Variant count (VC): n_edges u8
-    let variant_count = read_u8_vec(reader, n_edges)
-        .context(format!("reading variant count for accession '{}'", primary_accession))?;
+    let variant_count = read_u8_vec(reader, n_edges).context(format!(
+        "reading variant count for accession '{}'",
+        primary_accession
+    ))?;
 
     // PDBs: n_nodes * n_pdbs
-    let pdbs = read_pdbs(reader, n_nodes, n_pdbs)
-        .context(format!("reading pdbs for accession '{}'", primary_accession))?;
+    let pdbs = read_pdbs(reader, n_nodes, n_pdbs).context(format!(
+        "reading pdbs for accession '{}'",
+        primary_accession
+    ))?;
 
     Ok(ProteinGraph {
-        traversal_data: TraversalData{
+        traversal_data: TraversalData {
             nodes: nodes.into_boxed_slice(),
             edges: edges.into_boxed_slice(),
             mono_weight: mono_weight.into_boxed_slice(),
             variant_count: variant_count.into_boxed_slice(),
             pdbs,
         },
-        meta_data: MetaData{
+        meta_data: MetaData {
             accessions,
             position: position.into_boxed_slice(),
             iso_index: iso_index.into_boxed_slice(),
@@ -95,24 +124,21 @@ pub fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Pro
 }
 
 fn build_from_reader<R: BufRead>(reader: &mut R, count: usize) -> Result<StringTable> {
-        let mut items = Vec::with_capacity(count);
+    let mut items = Vec::with_capacity(count);
 
-        for _ in 0..count {
-            items.push(read_cstring(reader)?);
-        }
-
-        Ok(StringTable::build_from_strings(items))
+    for _ in 0..count {
+        items.push(read_cstring(reader)?);
     }
 
+    Ok(StringTable::build_from_strings(items))
+}
 
 fn read_u8_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u8>> {
     read_be_vec(reader, count, 1, |b| b[0])
 }
 
 fn read_u16_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u16>> {
-    read_be_vec(reader, count, 2, |b| {
-        u16::from_be_bytes([b[0], b[1]])
-    })
+    read_be_vec(reader, count, 2, |b| u16::from_be_bytes([b[0], b[1]]))
 }
 
 /// check for u32::MAX which is used as sentinel in TraversalData
@@ -125,7 +151,7 @@ fn read_u32_vec<R: BufRead>(reader: &mut R, count: usize) -> Result<Vec<u32>> {
         let value = u32::from_be_bytes(buf);
 
         if value == u32::MAX {
-           return Err(anyhow!(
+            return Err(anyhow!(
                 "u32::MAX at index {} (reserved sentinel; possible overflow/truncation)",
                 i
             ));
@@ -152,30 +178,27 @@ fn read_be_vec<R: BufRead, T>(
     let mut out = Vec::with_capacity(count);
 
     for chunk in buf.chunks_exact(byte_len) {
-        out.push(parse(chunk)); 
+        out.push(parse(chunk));
     }
 
     Ok(out)
 }
 
 fn read_cstring<R: BufRead>(reader: &mut R) -> Result<String> {
-
     let mut bytes = Vec::new();
 
     // read up to and including NUL
     reader.read_until(0u8, &mut bytes)?;
 
     // drop terminating NUL
-    if matches!(bytes.last(), Some(0)) { bytes.pop(); } 
-    
+    if matches!(bytes.last(), Some(0)) {
+        bytes.pop();
+    }
+
     Ok(bytes.into_iter().map(|b| b as char).collect())
 }
 
-fn read_pdbs<R: BufRead>(
-    reader: &mut R,
-    n_nodes: usize,
-    n_pdbs: usize,
-) -> Result<Pdbs> {
+fn read_pdbs<R: BufRead>(reader: &mut R, n_nodes: usize, n_pdbs: usize) -> Result<Pdbs> {
     let mut node_lists: Vec<Vec<Interval>> = Vec::with_capacity(n_nodes);
 
     for _node in 0..n_nodes {
@@ -189,9 +212,12 @@ fn read_pdbs<R: BufRead>(
             if lower == i64::MAX {
                 continue;
             }
-            
+
             if upper != i64::MAX && upper < lower {
-                bail!(format!("Malformed input: upper:{} < lower:{}", upper, lower));
+                bail!(format!(
+                    "Malformed input: upper:{} < lower:{}",
+                    upper, lower
+                ));
             }
 
             node_vec.push(Interval { lower, upper });

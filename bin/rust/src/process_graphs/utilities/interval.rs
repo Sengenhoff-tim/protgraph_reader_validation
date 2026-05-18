@@ -1,5 +1,5 @@
+use anyhow::Result;
 use serde::Deserialize;
-use anyhow::{Result};
 
 // A helper struct for intervals of protein weights. Inclusive on both ends: [lower, upper]
 

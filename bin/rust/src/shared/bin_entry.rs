@@ -1,9 +1,9 @@
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 
 #[derive(Encode, Decode, Debug)]
 pub struct BinEntry {
     pub seq: String,
-    pub meta: BinEntryMeta
+    pub meta: BinEntryMeta,
 }
 
 #[derive(Encode, Decode, Debug)]

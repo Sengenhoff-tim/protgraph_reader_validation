@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufReader, BufWriter},
     path::PathBuf,
     sync::Arc,
@@ -15,25 +15,21 @@ use crate::process_graphs::{
     threading::{spawn_graph_dispatcher, spawn_protein_graph_reader, spawn_writer_manager},
 };
 
-const GB: u64 = 1024*1024*1024;
+const GB: u64 = 1024 * 1024 * 1024;
 const LOG_FILE_NAME: &str = "logs.csv";
 
 /// main graph processing workflow
-pub fn process_graphs(
-    config: Config
-) -> Result<Vec<PathBuf>> {
-
+pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     // create output directory
     let cli = &config.cli;
     let out_dir = &cli.output_path;
-    create_dir_all(&out_dir)
-        .with_context(|| format!("failed to create {}", out_dir.display()))?;
+    create_dir_all(&out_dir).with_context(|| format!("failed to create {}", out_dir.display()))?;
 
     // set up log writer
     let logs = File::create(&cli.output_path.join(LOG_FILE_NAME))?;
     let log_writer = BufWriter::new(logs);
 
-    // setup graph reader 
+    // setup graph reader
     let graph = File::open(&cli.graph_input_path)?;
     let reader_for_graph = BufReader::new(graph);
     let (tx_graph, rx_graph) = bounded::<Result<ProteinGraph>>(2);
@@ -44,7 +40,7 @@ pub fn process_graphs(
         &cli.output_path,
         cli.hash_bits,
         cli.max_handles,
-        cli.avail_processors
+        cli.avail_processors,
     )?;
 
     //process graphs
@@ -56,22 +52,19 @@ pub fn process_graphs(
         intervals,
         cli.max_vars,
         cli.avail_processors as usize,
-        (cli.avail_memory as u64 *GB) as usize,
+        (cli.avail_memory as u64 * GB) as usize,
         cli.job_splits,
         cli.job_split_depth,
-        log_writer
+        log_writer,
     )?;
 
     graph_handle
         .join()
         .map_err(|e| anyhow::anyhow!("thread panicked: {:?}", e))??;
-    
+
     reader_handle.join().unwrap();
 
     let result = bin_writer_handle.join().unwrap()?;
 
-
-
     Ok(result)
 }
-

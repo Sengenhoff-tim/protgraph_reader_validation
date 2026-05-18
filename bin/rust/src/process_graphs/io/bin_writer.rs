@@ -1,26 +1,20 @@
 use std::{
     collections::HashMap,
-    fs::{create_dir_all, File, OpenOptions},
+    fs::{File, OpenOptions, create_dir_all},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
 };
 
 use anyhow::Result;
-use bincode::{encode_to_vec, config::standard};
+use bincode::{config::standard, encode_to_vec};
 use xxhash_rust::xxh64::xxh64;
 
 use crate::shared::BinEntry;
 
 const SEED: u64 = 0xC0111DE;
 
-pub fn write_entry_binary(
-    writer: &mut BufWriter<File>,
-    entry: &BinEntry,
-) -> Result<()> {
-    let bytes = encode_to_vec(
-        entry,
-        standard(),
-    )?;
+pub fn write_entry_binary(writer: &mut BufWriter<File>, entry: &BinEntry) -> Result<()> {
+    let bytes = encode_to_vec(entry, standard())?;
 
     let len = bytes.len() as u32;
 
@@ -42,12 +36,7 @@ pub fn open_writer(path: &Path) -> Result<BufWriter<File>> {
 }
 
 /// Creates binary files with hash as filename. Optionally creates subdirs based on hash as well.
-pub fn shard_filename(
-    out_dir: &Path,
-    hash: u64,
-    shard_id: usize,
-    use_subdirs: bool,
-) -> PathBuf {
+pub fn shard_filename(out_dir: &Path, hash: u64, shard_id: usize, use_subdirs: bool) -> PathBuf {
     let filename = format!("{shard_id:05x}.bin");
 
     if use_subdirs {
@@ -71,14 +60,7 @@ pub fn resolve_path(
 
     filenames
         .entry(shard_id)
-        .or_insert_with(|| {
-            shard_filename(
-                out_dir,
-                hash,
-                shard_id,
-                use_subdirs,
-            )
-        })
+        .or_insert_with(|| shard_filename(out_dir, hash, shard_id, use_subdirs))
         .clone()
 }
 
@@ -88,4 +70,3 @@ pub fn ensure_parent_dir(path: &Path) -> Result<()> {
     }
     Ok(())
 }
-

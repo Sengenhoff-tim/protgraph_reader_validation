@@ -1,6 +1,5 @@
 /// Pdbs are stored in a vector of intervals.
 /// The relevant intervals are stored in a continuous vector and can be retrived by node index.
-
 use anyhow::{Result, anyhow};
 
 use crate::process_graphs::utilities::Interval;
@@ -30,10 +29,7 @@ impl Pdbs {
             offsets.push(all.len());
         }
 
-
-        Ok(Pdbs { all, 
-            offsets 
-        })
+        Ok(Pdbs { all, offsets })
     }
 
     pub fn get_node_intervals(&self, node: usize) -> Option<&[Interval]> {
@@ -44,5 +40,4 @@ impl Pdbs {
         let e = self.offsets[node + 1];
         Some(&self.all[s..e])
     }
-
 }

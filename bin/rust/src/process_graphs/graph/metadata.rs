@@ -1,4 +1,4 @@
-use anyhow::{Result};
+use anyhow::Result;
 
 use crate::process_graphs::utilities::StringTable;
 use crate::shared::{BinEntry, BinEntryMeta};
@@ -21,16 +21,12 @@ struct ForwardPass {
     iso_idx: u8,
     mssclvg: u32,
     spos: Option<u16>,
-    last_node_idx: Option<(usize, usize)>
+    last_node_idx: Option<(usize, usize)>,
 }
 
 impl MetaData {
-
     /// builds entry from trace
-    pub fn build_peptide(
-        &self, 
-        trace: &[(u32, Option<u32>)]
-    ) -> Result<Option<BinEntry>> {
+    pub fn build_peptide(&self, trace: &[(u32, Option<u32>)]) -> Result<Option<BinEntry>> {
         let trace_len = trace.len();
 
         if trace_len < 2 {
@@ -40,8 +36,8 @@ impl MetaData {
 
         // final edge
         if let Some(last) = trace.last() {
-            if let Some(edge) = last.1{
-                let q = self.qualifiers.get_str( edge as usize);
+            if let Some(edge) = last.1 {
+                let q = self.qualifiers.get_str(edge as usize);
 
                 if !q.is_empty() {
                     fwd_res.qualifiers.push_str(q);
@@ -54,9 +50,9 @@ impl MetaData {
 
         if let Some((node_idx, seq_len)) = fwd_res.last_node_idx {
             let iso_pos = self.iso_position[node_idx];
-            
+
             if iso_pos != u16::MAX {
-                epos = Some(iso_pos  + seq_len  as u16- 1)
+                epos = Some(iso_pos + seq_len as u16 - 1)
             } else {
                 let pos = self.position[node_idx];
                 if pos != u16::MAX {
@@ -65,41 +61,36 @@ impl MetaData {
             };
         }
 
-        let acc = self.accessions
+        let acc = self
+            .accessions
             .get(fwd_res.iso_idx as usize)
             .map(|s| s.as_str())
             .unwrap_or("NOT FOUND");
 
-        let qualifiers_str = fwd_res.qualifiers.strip_suffix(',').unwrap_or(&fwd_res.qualifiers);
+        let qualifiers_str = fwd_res
+            .qualifiers
+            .strip_suffix(',')
+            .unwrap_or(&fwd_res.qualifiers);
 
-        Ok(Some(BinEntry{
-                    seq: fwd_res.seq,
-                    meta: BinEntryMeta {
-                        acc: acc.to_string(), 
-                        qualifiers: qualifiers_str.to_string(),
-                        spos: fwd_res.spos,
-                        epos: epos,
-                        mssclvg: fwd_res.mssclvg
-                    }
-                    
-                
-                }
-            )
-        )
+        Ok(Some(BinEntry {
+            seq: fwd_res.seq,
+            meta: BinEntryMeta {
+                acc: acc.to_string(),
+                qualifiers: qualifiers_str.to_string(),
+                spos: fwd_res.spos,
+                epos: epos,
+                mssclvg: fwd_res.mssclvg,
+            },
+        }))
     }
 
     /// helper function, builds seq and collects mssclvg, idx for accession
-    fn forward_pass(
-        &self,
-        trace: &[(u32, Option<u32>)],
-        trace_len: usize,
-    ) -> Result<ForwardPass>{
-
+    fn forward_pass(&self, trace: &[(u32, Option<u32>)], trace_len: usize) -> Result<ForwardPass> {
         let mut seq_out = String::new();
         let mut qualifiers_out = String::new();
         let mut iso_idx: u8 = 0;
         let mut mssclvg: u32 = 0;
-        
+
         let mut last_seq_node: Option<(usize, usize)> = None;
 
         let mut spos_retrieved = false;
@@ -112,7 +103,7 @@ impl MetaData {
             let seq = self.sequences.get_str(node_idx).to_string();
 
             if seq.is_empty() {
-                continue; 
+                continue;
             }
             let seq_len = seq.len();
 
@@ -122,7 +113,6 @@ impl MetaData {
                 spos_retrieved = true;
 
                 let iso_pos = self.iso_position[node_idx];
-                
 
                 if iso_pos != u16::MAX {
                     spos = Some(iso_pos);
@@ -150,16 +140,14 @@ impl MetaData {
                 }
             }
         }
-        
-        Ok(
-            ForwardPass{
-                seq: seq_out, 
-                qualifiers: qualifiers_out, 
-                iso_idx, 
-                mssclvg, 
-                spos,
-                last_node_idx: last_seq_node, 
-            }
-        )
+
+        Ok(ForwardPass {
+            seq: seq_out,
+            qualifiers: qualifiers_out,
+            iso_idx,
+            mssclvg,
+            spos,
+            last_node_idx: last_seq_node,
+        })
     }
 }

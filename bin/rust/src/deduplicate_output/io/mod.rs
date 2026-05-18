@@ -1,5 +1,4 @@
 /// binary shard readers and output writers
-
 mod reader;
 mod writers;
 

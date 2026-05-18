@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use anyhow::{Result};
+use anyhow::Result;
 
 use crate::process_graphs::utilities::{Interval, Pdbs, SubgraphForQuery, TraversalStatus};
 
@@ -19,16 +19,15 @@ impl TraversalData {
         &self,
         interval: &Interval,
         max_vars: u8,
-        limit: usize
+        limit: usize,
     ) -> Result<TraversalStatus> {
-
         // initialize edge ranges
         let mut edge_ranges = Vec::with_capacity(self.nodes.len());
         build_edge_ranges(&self.nodes, &mut edge_ranges);
 
         // initialize subgraph
         let mut traversal_state = SubgraphForQuery::new(self.nodes.len(), max_vars, limit);
-        
+
         // subgraph is build in a single forward pass
         for node_idx in 0..self.nodes.len() - 1 {
             if traversal_state.states_at_node[node_idx].is_empty() {
@@ -46,7 +45,7 @@ impl TraversalData {
 
                 for edge_idx in edge_begin..edge_end {
                     let new_var = var + self.variant_count[edge_idx];
-                    
+
                     if new_var > max_vars {
                         continue;
                     }
@@ -57,7 +56,7 @@ impl TraversalData {
 
                     let lower = interval.lower - achieved;
                     let upper = interval.upper - achieved;
-                    
+
                     if !self.has_overlapping_interval(target_node, lower, upper) {
                         continue;
                     }
@@ -73,7 +72,7 @@ impl TraversalData {
                     ) {
                         return Ok(TraversalStatus::Overflow());
                     }
-                }           
+                }
             }
         }
         Ok(TraversalStatus::Complete(traversal_state))
@@ -81,12 +80,7 @@ impl TraversalData {
 
     // Check if intervals overlap. Intervals are not materialized for efficacy.
     #[inline]
-    fn has_overlapping_interval(
-        &self,
-        node: usize,
-        lower: i64,
-        upper: i64,
-    ) -> bool {
+    fn has_overlapping_interval(&self, node: usize, lower: i64, upper: i64) -> bool {
         let slice = match self.pdbs.get_node_intervals(node) {
             Some(s) => s,
             None => return false,
@@ -113,10 +107,7 @@ impl TraversalData {
 
 /// edges are encoded in the node vector
 #[inline(always)]
-fn build_edge_ranges(
-    nodes: &[u32],
-    edge_ranges: &mut Vec<(usize, usize)>,
-) {
+fn build_edge_ranges(nodes: &[u32], edge_ranges: &mut Vec<(usize, usize)>) {
     for i in 0..nodes.len() {
         let begin = if i == 0 { 0 } else { nodes[i - 1] as usize };
         let end = nodes[i] as usize;
