@@ -29,7 +29,7 @@ impl MetaData {
     /// builds entry from trace
     pub fn build_peptide(
         &self, 
-        trace: &[(u32, u32)]
+        trace: &[(u32, Option<u32>)]
     ) -> Result<Option<BinEntry>> {
         let trace_len = trace.len();
 
@@ -40,11 +40,13 @@ impl MetaData {
 
         // final edge
         if let Some(last) = trace.last() {
-            let q = self.qualifiers.get_str( last.1 as usize);
+            if let Some(edge) = last.1{
+                let q = self.qualifiers.get_str( edge as usize);
 
-            if !q.is_empty() {
-                fwd_res.qualifiers.push_str(q);
-                fwd_res.qualifiers.push(',');
+                if !q.is_empty() {
+                    fwd_res.qualifiers.push_str(q);
+                    fwd_res.qualifiers.push(',');
+                }
             }
         }
 
@@ -89,7 +91,7 @@ impl MetaData {
     /// helper function, builds seq and collects mssclvg, idx for accession
     fn forward_pass(
         &self,
-        trace: &[(u32, u32)],
+        trace: &[(u32, Option<u32>)],
         trace_len: usize,
     ) -> Result<ForwardPass>{
 
@@ -136,14 +138,16 @@ impl MetaData {
 
             iso_idx = iso_idx.max(self.iso_index[node_idx]);
 
-            if self.cleaved[edge as usize] {
-                mssclvg += 1;
-            }
+            if let Some(e) = edge {
+                if self.cleaved[e as usize] {
+                    mssclvg += 1;
+                }
 
-            let q = self.qualifiers.get_str(edge as usize);
-            if !q.is_empty() {
-                qualifiers_out.push_str(q);
-                qualifiers_out.push(',');
+                let q = self.qualifiers.get_str(e as usize);
+                if !q.is_empty() {
+                    qualifiers_out.push_str(q);
+                    qualifiers_out.push(',');
+                }
             }
         }
         

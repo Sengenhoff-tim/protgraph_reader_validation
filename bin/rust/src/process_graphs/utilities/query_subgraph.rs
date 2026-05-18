@@ -1,16 +1,14 @@
-/// Bookkeeping for traversal. Parent and edge use MAX as sentinel.
-/// IMPORTANT: In reference implementation, u32::MAX is a valid value.
-
-const STATE_SIZE: usize = 32;
-
+/// Bookkeeping for traversal
 #[derive(Debug, Clone)]
 pub struct State {
     pub parent: Option<usize>,
     pub node: u32,
-    pub edge: u32,
+    pub edge: Option<u32>,
     pub var: u8,
     pub tv: i64,
 }
+
+const STATE_SIZE: usize = size_of::<State>();
 
 pub enum TraversalStatus {
     Complete(SubgraphForQuery),
@@ -31,7 +29,7 @@ impl SubgraphForQuery {
         arena.push(State {
             parent: None,
             node: 0,
-            edge: 0,
+            edge: None,
             var: 0,
             tv: 0,
         });
@@ -46,7 +44,7 @@ impl SubgraphForQuery {
     }
 
     /// Reconstructs a single path starting from any node.
-    pub fn reconstruct_trace( &self, state_idx: usize, ) -> Vec<(u32, u32)> { 
+    pub fn reconstruct_trace( &self, state_idx: usize, ) -> Vec<(u32, Option<u32>)> { 
         let mut trace = Vec::new(); 
         let mut state_id = Some(state_idx);
 
@@ -82,7 +80,7 @@ impl SubgraphForQuery {
         self.arena.push(State {
             parent: parent,
             node: node,
-            edge: edge,
+            edge: Some(edge),
             var: var,
             tv: tv,
         });
