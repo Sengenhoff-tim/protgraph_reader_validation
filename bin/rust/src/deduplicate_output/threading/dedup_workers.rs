@@ -27,7 +27,7 @@ fn process_shard(
     for e in entries {
         unique_entries
             .entry(e.seq)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(e.meta);
     }
 

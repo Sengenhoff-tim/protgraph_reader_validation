@@ -34,7 +34,7 @@ impl SubgraphForQuery {
             tv: 0,
         });
 
-        states_at_node[0].push(0 as usize);
+        states_at_node[0].push(0_usize);
 
         Self {
             limit,
@@ -78,11 +78,11 @@ impl SubgraphForQuery {
         }
 
         self.arena.push(State {
-            parent: parent,
-            node: node,
+            parent,
+            node,
             edge: Some(edge),
-            var: var,
-            tv: tv,
+            var,
+            tv,
         });
 
         self.states_at_node[target_node].push(len);

@@ -99,7 +99,7 @@ fn traversal_thread(
         }
 
         Ok(TraversalStatus::Complete(state)) => {
-            let final_states = &state.states_at_node[(data.nodes.len() - 1) as usize];
+            let final_states = &state.states_at_node[((data.nodes.len() - 1))];
 
             for &state_id in final_states {
                 let trace = state.reconstruct_trace(state_id);

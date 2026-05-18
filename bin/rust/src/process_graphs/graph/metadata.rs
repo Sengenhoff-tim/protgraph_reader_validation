@@ -35,8 +35,8 @@ impl MetaData {
         let mut fwd_res = self.forward_pass(trace, trace_len)?;
 
         // final edge
-        if let Some(last) = trace.last() {
-            if let Some(edge) = last.1 {
+        if let Some(last) = trace.last()
+            && let Some(edge) = last.1 {
                 let q = self.qualifiers.get_str(edge as usize);
 
                 if !q.is_empty() {
@@ -44,7 +44,6 @@ impl MetaData {
                     fwd_res.qualifiers.push(',');
                 }
             }
-        }
 
         let mut epos: Option<u16> = None;
 
@@ -78,7 +77,7 @@ impl MetaData {
                 acc: acc.to_string(),
                 qualifiers: qualifiers_str.to_string(),
                 spos: fwd_res.spos,
-                epos: epos,
+                epos,
                 mssclvg: fwd_res.mssclvg,
             },
         }))

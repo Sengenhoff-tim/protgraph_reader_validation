@@ -38,7 +38,7 @@ fn writer_manager_thread(
     max_handles: Option<u32>,
 ) -> Result<Vec<PathBuf>> {
     // determine maximum file handles if not set
-    let max_h = max_handles.unwrap_or_else(|| get_sys_open_files());
+    let max_h = max_handles.unwrap_or_else(get_sys_open_files);
 
     // determine hash bits if not set
     let h_bits = hash_bits.unwrap_or_else(|| hash_bits_for(max_h));
@@ -58,7 +58,7 @@ fn writer_manager_thread(
     let tmp_path = &out_dir.join("tmp");
 
     while let Ok(entry) = rx.recv() {
-        let path = resolve_path(&entry, &tmp_path, shard_mask, use_subdirs, &mut filenames);
+        let path = resolve_path(&entry, tmp_path, shard_mask, use_subdirs, &mut filenames);
 
         ensure_parent_dir(&path)?;
 

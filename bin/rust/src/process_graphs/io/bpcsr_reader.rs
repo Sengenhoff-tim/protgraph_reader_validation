@@ -28,8 +28,7 @@ pub fn read_single_graph<R: BufRead>(num_acc: u32, reader: &mut R) -> Result<Pro
         accessions.push(read_cstring(reader).context("reading accession")?);
     }
 
-    let primary_accession = accessions
-        .get(0)
+    let primary_accession = accessions.first()
         .cloned()
         .unwrap_or_else(|| "unknown".to_string());
 
@@ -229,5 +228,5 @@ fn read_pdbs<R: BufRead>(reader: &mut R, n_nodes: usize, n_pdbs: usize) -> Resul
         node_lists.push(node_vec);
     }
 
-    Ok(Pdbs::from_node_lists(node_lists)?)
+    Pdbs::from_node_lists(node_lists)
 }

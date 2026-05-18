@@ -23,10 +23,10 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     // create output directory
     let cli = &config.cli;
     let out_dir = &cli.output_path;
-    create_dir_all(&out_dir).with_context(|| format!("failed to create {}", out_dir.display()))?;
+    create_dir_all(out_dir).with_context(|| format!("failed to create {}", out_dir.display()))?;
 
     // set up log writer
-    let logs = File::create(&cli.output_path.join(LOG_FILE_NAME))?;
+    let logs = File::create(cli.output_path.join(LOG_FILE_NAME))?;
     let log_writer = BufWriter::new(logs);
 
     // setup graph reader
