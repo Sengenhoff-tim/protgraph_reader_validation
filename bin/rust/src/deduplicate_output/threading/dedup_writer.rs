@@ -1,0 +1,44 @@
+use crossbeam_channel::Receiver;
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
+use anyhow::Result;
+use std::fs::File;
+use std::io::BufWriter;
+
+use crate::shared::BinEntryMeta;
+use crate::deduplicate_output::io::{write_meta, write_sequences};
+
+pub fn spawn_writers(
+    rx_out: Receiver<(String, Vec<BinEntryMeta>)>,
+    outdir: &PathBuf,
+) -> std::thread::JoinHandle<Result<()>> {
+    std::thread::spawn({
+        let outdir = outdir.clone();
+
+        move || -> Result<()> {
+            fs::create_dir_all(&outdir)?;
+
+            let seq_file = File::create(outdir.join("peptides.fasta"))?;
+            let meta_file = File::create(outdir.join("metadata.csv"))?;
+
+            let mut seq_writer = BufWriter::new(seq_file);
+            let mut meta_writer = BufWriter::new(meta_file);
+
+            writeln!(
+                meta_writer,
+                "ID,ACC,SPOS,EPOS,MSSCLVG,QUALIFIERS"
+            )?;
+
+            for (id, (sequence, metas)) in rx_out.iter().enumerate() {
+                write_sequences(&mut seq_writer, id, &sequence)?;
+                write_meta(&mut meta_writer, id, &metas)?;
+            }
+
+            seq_writer.flush()?;
+            meta_writer.flush()?;
+
+            Ok(())
+        }
+    })
+}

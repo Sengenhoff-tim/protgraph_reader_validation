@@ -94,7 +94,6 @@ process READERRUST {
         val(max_vars), 
         val(prefix)
     )
-    val(dedub)
 
     output:
     tuple(
@@ -112,18 +111,16 @@ process READERRUST {
 
     script:
     p_count = Runtime.runtime.availableProcessors()
-    mem = 7
     """
     precursor_specifc_fasta \\
         --graphs ${database_bpcsr} \\
         --queries ${rust_queries_csv} \\
-        --max_vars ${max_vars} \\
+        --max_vars 3 \\
         -o ./${prefix}_output \\
         --avail_processors ${p_count} \\
         -i 100 \\
-        --avail_memory ${mem} \\
-        --hash_bits 3 \\
-        ${dedub}
+        --avail_memory 1 \\
+        --hash_bits 3
     """
 }
 
@@ -318,7 +315,7 @@ workflow {
 
     BUILDGRAPH(BUILDINPUT.out)
     
-    READERRUST(BUILDGRAPH.out, "-d")
+    READERRUST(BUILDGRAPH.out)
 
     READERCPP(READERRUST.out)
 

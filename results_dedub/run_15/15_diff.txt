@@ -1,1 +1,1 @@
-/home/tim/Documents/BA/protgraph_reader_validation/work/54/6b39f0333de5bd231bed06ac506226/15_diff.txt
+/home/tim/Documents/BA/protgraph_reader_validation/work/66/b748ddc2a055e2b0a7bb3546bb6d81/15_diff.txt

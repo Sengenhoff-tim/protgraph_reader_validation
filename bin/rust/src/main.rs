@@ -1,23 +1,28 @@
-use anyhow::{Result, anyhow};
-use bincode::config;
-use clap::Parser;
+use anyhow::{Result};
 
-mod io;
-mod utils;
-mod traversal;
-mod workflows;
+mod deduplicate_output;
+mod parameters;
+mod process_graphs;
+mod shared;
 
-use crate::{utils::Config, workflows::process_graphs_deduplicated};
+use crate::{parameters::Config, process_graphs::process_graphs, deduplicate_output::dedup_bin_files};
 
+/// reads bpcsr files produced by ProtGraph and produces:
+///     - a deduplicated peptides.FASTA
+///     - metadata.csv, which describes from which proteins the peptide was generated
+///     - log.csv containing run information
 fn main() -> Result<()> {
 
     let config = Config::new()?;
+    
+    let avail_processors = config.cli.avail_processors as usize;
+    let output_path = config.cli.output_path.clone();
 
-    if config.cli.deduplicate {
-        process_graphs_deduplicated(config)?;
-    } else {
-        return Ok(());
-    }
+    // read graphs and produce intermediate files
+    let tmp_files = process_graphs(config)?;
+
+    // read intermediate files and write deduplicated output
+    dedup_bin_files(tmp_files, avail_processors , &output_path)?;
         
     Ok(())
 }
