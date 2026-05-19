@@ -104,7 +104,7 @@ process READERRUST {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path("./${prefix}_output/peptides.fasta"),
+        path("./${prefix}_output/peptides.FASTA"),
         val(max_vars), 
         val(prefix)
     )
@@ -112,7 +112,7 @@ process READERRUST {
     script:
     p_count = Runtime.runtime.availableProcessors()
     """
-    precursor_specifc_fasta \\
+    bpcsr_to_fasta \\
         --graphs ${database_bpcsr} \\
         --queries ${rust_queries_csv} \\
         --max_vars 3 \\

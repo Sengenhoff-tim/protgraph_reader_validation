@@ -9,6 +9,9 @@ use std::path::Path;
 use crate::deduplicate_output::io::{write_meta, write_sequences};
 use crate::shared::BinEntryMeta;
 
+const OUT_FASTA_FILE: &str = "peptides.fasta";
+const OUT_METADATA_FILE: &str = "metadata.csv";
+
 pub fn spawn_writers(
     rx_out: Receiver<(String, Vec<BinEntryMeta>)>,
     outdir: &Path,
@@ -19,8 +22,8 @@ pub fn spawn_writers(
         move || -> Result<()> {
             fs::create_dir_all(&outdir)?;
 
-            let seq_file = File::create(outdir.join("peptides.fasta"))?;
-            let meta_file = File::create(outdir.join("metadata.csv"))?;
+            let seq_file = File::create(outdir.join(OUT_FASTA_FILE))?;
+            let meta_file = File::create(outdir.join(OUT_METADATA_FILE))?;
 
             let mut seq_writer = BufWriter::new(seq_file);
             let mut meta_writer = BufWriter::new(meta_file);

@@ -1,5 +1,5 @@
 [package]
-name = "protgraph_bpcsr_reader"
+name = "bpcsr_to_fasta"
 version = "0.1.0"
 edition = "2024"
 
