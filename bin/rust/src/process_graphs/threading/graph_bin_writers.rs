@@ -18,6 +18,8 @@ use crate::process_graphs::io::bin_writer::{
 };
 use crate::shared::BinEntry;
 
+const CHANNEL_CAPACITY_BIN_ENTRY: usize = 20;
+
 pub fn spawn_writer_manager(
     out_dir: &Path,
     hash_bits: Option<u8>,
@@ -26,7 +28,9 @@ pub fn spawn_writer_manager(
 ) -> Result<GraphWriterHandle> {
     let out_dir = out_dir.to_path_buf();
 
-    let (tx, rx) = crossbeam_channel::bounded::<BinEntry>((avail_processors * 2) as usize);
+    let (tx, rx) = crossbeam_channel::bounded::<BinEntry>(
+        CHANNEL_CAPACITY_BIN_ENTRY.min((avail_processors * 2) as usize),
+    );
 
     let handle = thread::spawn(move || writer_manager_thread(rx, &out_dir, hash_bits, max_handles));
 

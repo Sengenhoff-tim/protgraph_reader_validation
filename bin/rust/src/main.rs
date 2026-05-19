@@ -9,10 +9,10 @@ use crate::{
     deduplicate_output::dedup_bin_files, parameters::Config, process_graphs::process_graphs,
 };
 
-/// reads bpcsr files produced by ProtGraph and produces:
-///     - a deduplicated peptides.FASTA
-///     - metadata.csv, which describes from which proteins the peptide was generated
-///     - log.csv containing run information
+/// Reads BPCSR files produced by ProtGraph and generates:
+/// - a deduplicated `peptides.fasta`
+/// - `metadata.csv`, describing which proteins generated each peptide
+/// - `log.csv`, containing run information
 fn main() -> Result<()> {
     let config = Config::new()?;
 

@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use crossbeam_channel::bounded;
 
 use crate::process_graphs::{
@@ -17,6 +17,7 @@ use crate::{parameters::Config, process_graphs::threading::graph_workers::Worker
 
 const GB: u64 = 1024 * 1024 * 1024;
 const LOG_FILE_NAME: &str = "logs.csv";
+const CHANNEL_CAPACITY_GRAPH_IN: usize = 2;
 
 /// main graph processing workflow
 pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
@@ -32,7 +33,7 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     // setup graph reader
     let graph = File::open(&cli.graph_input_path)?;
     let reader_for_graph = BufReader::new(graph);
-    let (tx_graph, rx_graph) = bounded::<Result<ProteinGraph>>(2);
+    let (tx_graph, rx_graph) = bounded::<Result<ProteinGraph>>(CHANNEL_CAPACITY_GRAPH_IN);
     let reader_handle = thread::spawn(|| spawn_protein_graph_reader(reader_for_graph, tx_graph));
 
     // spawn tmp file writer
@@ -64,7 +65,7 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
 
     graph_handle
         .join()
-        .map_err(|e| anyhow::anyhow!("thread panicked: {:?}", e))??;
+        .map_err(|e| anyhow!("thread panicked: {:?}", e))??;
 
     reader_handle.join().unwrap();
 

@@ -1,5 +1,5 @@
 [package]
-name = "precursor_specifc_fasta"
+name = "protgraph_bpcsr_reader"
 version = "0.1.0"
 edition = "2024"
 
