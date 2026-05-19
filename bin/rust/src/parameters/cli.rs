@@ -96,4 +96,7 @@ pub struct Cli {
         help = "Maximum times a job can be recursively split (increases exponentially; failed jobs saved to failed.csv)"
     )]
     pub job_split_depth: u8,
+
+    #[arg(short = 'z', long = "zip", value_name = "U8", help = "Zip output")]
+    pub zip: bool,
 }

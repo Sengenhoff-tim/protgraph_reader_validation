@@ -18,12 +18,13 @@ fn main() -> Result<()> {
 
     let avail_processors = config.cli.avail_processors as usize;
     let output_path = config.cli.output_path.clone();
+    let zip = config.cli.zip;
 
     // read graphs and produce intermediate files
     let tmp_files = process_graphs(config)?;
 
     // read intermediate files and write deduplicated output
-    dedup_bin_files(tmp_files, avail_processors, &output_path)?;
+    dedup_bin_files(tmp_files, avail_processors, &output_path, zip)?;
 
     Ok(())
 }

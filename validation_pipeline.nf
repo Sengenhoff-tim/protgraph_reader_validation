@@ -119,7 +119,7 @@ process READERRUST {
         -o ./${prefix}_output \\
         --avail_processors ${p_count} \\
         -i 100 \\
-        --avail_memory 1 \\
+        --avail_memory 8 \\
         --hash_bits 3
     """
 }
@@ -249,14 +249,14 @@ process DIFF {
 
     script:
     """
-    gzip -cdf ${rust} | sort -t '>' -k2  > sorted_${rust}
+    sort -t '>' -k2 > sorted_${rust}
     sort -t '>' -k2 ${cpp} > sorted_${cpp}
     diff sorted_${rust} sorted_${cpp} > ${prefix}_diff.txt || true
     """
 }
 
 process DIFFDEDUB {
-    publishDir("results_dedub/run_${prefix}/")
+    publishDir("results/run_${prefix}/")
     
     input:
     tuple(
@@ -291,7 +291,7 @@ process DIFFDEDUB {
 
     script:
     """
-    grep -v '^>' ${rust} | sort > sorted_${rust}
+    gzip -cdf ${rust} | grep -v '^>' | sort > sorted_${rust}
     grep -v '^>' ${cpp} | sort > sorted_${cpp}
     diff sorted_${rust} sorted_${cpp} > ${prefix}_diff.txt || true
     """

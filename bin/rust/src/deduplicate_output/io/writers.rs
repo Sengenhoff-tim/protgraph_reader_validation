@@ -4,20 +4,12 @@ use anyhow::Result;
 
 use crate::shared::BinEntryMeta;
 
-pub fn write_sequences<W: Write>(
-    writer: &mut W,
-    id: usize,
-    sequence: &str,
-) -> Result<()> {
+pub fn write_sequences<W: Write>(writer: &mut W, id: usize, sequence: &str) -> Result<()> {
     writeln!(writer, ">pg|{}\n{}", id, insert_newlines(sequence))?;
     Ok(())
 }
 
-pub fn write_meta<W: Write>(
-    writer: &mut W,
-    id: usize,
-    metas: &[BinEntryMeta],
-) -> Result<()> {
+pub fn write_meta<W: Write>(writer: &mut W, id: usize, metas: &[BinEntryMeta]) -> Result<()> {
     for meta in metas {
         let spos = meta
             .spos

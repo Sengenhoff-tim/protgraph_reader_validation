@@ -8,12 +8,17 @@ use crate::shared::{BinEntry, BinEntryMeta};
 const CHANNEL_CAPACITY_IN: usize = 20;
 const CHANNEL_CAPACITY_OUT_BASE: usize = 20;
 
-pub fn dedup_bin_files(result: Vec<PathBuf>, num_threads: usize, outdir: &Path) -> Result<()> {
+pub fn dedup_bin_files(
+    result: Vec<PathBuf>,
+    num_threads: usize,
+    outdir: &Path,
+    zip: bool,
+) -> Result<()> {
     let (tx_in, rx_in) = bounded::<Vec<BinEntry>>(CHANNEL_CAPACITY_IN.min(num_threads * 2));
     let (tx_out, rx_out) =
         bounded::<(String, Vec<BinEntryMeta>)>(CHANNEL_CAPACITY_OUT_BASE.min(num_threads * 2));
 
-    let writer_handle = spawn_writers(rx_out, outdir);
+    let writer_handle = spawn_writers(rx_out, outdir, zip);
 
     let mut worker_handles = Vec::new();
 
