@@ -1,11 +1,11 @@
-use std::{fs::File, io::Write};
+use std::io::Write;
 
 use anyhow::Result;
 
 use crate::shared::BinEntryMeta;
 
-pub fn write_sequences(
-    writer: &mut std::io::BufWriter<File>,
+pub fn write_sequences<W: Write>(
+    writer: &mut W,
     id: usize,
     sequence: &str,
 ) -> Result<()> {
@@ -13,8 +13,8 @@ pub fn write_sequences(
     Ok(())
 }
 
-pub fn write_meta(
-    writer: &mut std::io::BufWriter<File>,
+pub fn write_meta<W: Write>(
+    writer: &mut W,
     id: usize,
     metas: &[BinEntryMeta],
 ) -> Result<()> {

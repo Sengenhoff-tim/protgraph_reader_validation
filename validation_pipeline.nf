@@ -104,7 +104,7 @@ process READERRUST {
         path(uniprot_txt),
         path(summary_txt),
         path(database_bpcsr),
-        path("./${prefix}_output/peptides.FASTA"),
+        path("./${prefix}_output/peptides.fasta.gz"),
         val(max_vars), 
         val(prefix)
     )
@@ -249,7 +249,7 @@ process DIFF {
 
     script:
     """
-    sort -t '>' -k2 ${rust} > sorted_${rust}
+    gzip -cdf ${rust} | sort -t '>' -k2  > sorted_${rust}
     sort -t '>' -k2 ${cpp} > sorted_${cpp}
     diff sorted_${rust} sorted_${cpp} > ${prefix}_diff.txt || true
     """
