@@ -13,8 +13,8 @@ use crate::deduplicate_output::io::{write_meta, write_sequences};
 use crate::shared::BinEntryMeta;
 
 
-const OUT_FASTA_FILE: &str = "peptides.fasta";
-const OUT_METADATA_FILE: &str = "metadata.csv";
+const OUT_FASTA_FILE: &str = "peptides.fasta.gz";
+const OUT_METADATA_FILE: &str = "metadata.csv.gz";
 
 const META_HEADER_LINE: &str = "ID,ACC,SPOS,EPOS,MSSCLVG,QUALIFIERS";
 
