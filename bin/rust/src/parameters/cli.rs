@@ -22,7 +22,7 @@ pub struct Cli {
 
     #[arg(
         short = 'o',
-        long = "output",
+        long = "outdir",
         value_name = "PATH",
         help = "Output directory"
     )]
@@ -58,7 +58,7 @@ pub struct Cli {
         short = 'h',
         long = "max_file_handles",
         value_name = "U8",
-        help = "Maximum file handles for intermediate files. Only used when deduplicating. With Unix, defaults to RLIMIT_NOFILE. With Windows, defaults to 2048"
+        help = "Maximum file handles for intermediate files. Only used when deduplicating. With Unix, defaults to RLIMIT_NOFILE, clamped between 64 and 8192. With Windows, defaults to 2048"
     )]
     pub max_handles: Option<u32>,
 

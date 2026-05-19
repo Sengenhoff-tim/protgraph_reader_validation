@@ -120,7 +120,8 @@ process READERRUST {
         --avail_processors ${p_count} \\
         -i 100 \\
         --avail_memory 8 \\
-        --hash_bits 3
+        --hash_bits 3 \\
+        -z
     """
 }
 
