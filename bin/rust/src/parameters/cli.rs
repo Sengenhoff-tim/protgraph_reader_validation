@@ -4,6 +4,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 pub struct Cli {
+    // i/o args
     #[arg(
         short = 'g',
         long = "graphs",
@@ -28,6 +29,9 @@ pub struct Cli {
     )]
     pub outdir_path: PathBuf,
 
+    #[arg(short = 'z', long = "zip", value_name = "U8", help = "Zip output")]
+    pub zip: bool,
+
     #[arg(
         short = 'v',
         long = "max_vars",
@@ -37,6 +41,7 @@ pub struct Cli {
     )]
     pub max_vars: u8,
 
+    // memory/prcoessing constraints
     #[arg(
         long = "avail_processors",
         value_name = "U64",
@@ -46,52 +51,11 @@ pub struct Cli {
     pub avail_processors: usize,
 
     #[arg(
-        long = "hash_bits",
-        value_name = "U8",
-        help = "Creates 2^hash_bits intermediate bins as files. Only used when deduplicating. Gives rough control over intermediate file size. Defaults to auto-tuned value based on max file handles."
-    )]
-    pub hash_bits: Option<u8>,
-
-    #[arg(
-        long = "max_file_handles",
-        value_name = "U8",
-        help = "Maximum file handles for intermediate files. Only used when deduplicating. With Unix, defaults to RLIMIT_NOFILE, clamped between 64 and 8192. With Windows, defaults to 2048"
-    )]
-    pub max_handles: Option<u32>,
-
-    #[arg(
         long = "avail_memory",
-        value_name = "U8",
+        value_name = "U64",
         help = "Available memory in GB. When estimated usage exceeds this, jobs are split and rescheduled. Splitting should be avoided. See documentation for details."
     )]
-    pub avail_memory: u8,
-
-    #[arg(
-        long = "interval_bin_length",
-        value_name = "U16",
-        default_value_t = 100,
-        help = "Interval bin size in Da. Smaller bins = finer-grained memory estimation and more frequent job splits"
-    )]
-    pub interval_bin_size: u16,
-
-    #[arg(
-        long = "job_splits",
-        value_name = "U8",
-        default_value_t = 4,
-        help = "Number of sub-jobs created per split when memory limit reached"
-    )]
-    pub job_splits: u8,
-
-    #[arg(
-        long = "split_depth",
-        value_name = "U8",
-        default_value_t = 5,
-        help = "Maximum times a job can be recursively split (increases exponentially; failed jobs saved to failed.csv)"
-    )]
-    pub job_split_depth: u8,
-
-    #[arg(short = 'z', long = "zip", value_name = "U8", help = "Zip output")]
-    pub zip: bool,
+    pub avail_memory: usize,
 
     #[arg(
         long = "ch_proc_in_size",
@@ -120,4 +84,44 @@ pub struct Cli {
         help = "Amount of sequence-metadata pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2."
     )]
     pub ch_dedup_out_size: Option<usize>,
+
+    // intermediate file options
+    #[arg(
+        long = "hash_bits",
+        value_name = "U8",
+        help = "Creates 2^hash_bits intermediate bins as files. Only used when deduplicating. Gives rough control over intermediate file size. Defaults to auto-tuned value based on max file handles."
+    )]
+    pub hash_bits: Option<u8>,
+
+    #[arg(
+        long = "max_file_handles",
+        value_name = "U8",
+        help = "Maximum file handles for intermediate files. Only used when deduplicating. With Unix, defaults to RLIMIT_NOFILE, clamped between 64 and 8192. With Windows, defaults to 2048"
+    )]
+    pub max_handles: Option<u32>,
+
+    // scheduling constraints
+    #[arg(
+        long = "interval_bin_length",
+        value_name = "U16",
+        default_value_t = 100,
+        help = "Interval bin size in Da. Smaller bins = less memory required, less frequent job splits, but more overhead."
+    )]
+    pub interval_bin_size: u16,
+
+    #[arg(
+        long = "job_splits",
+        value_name = "U8",
+        default_value_t = 4,
+        help = "Number of sub-jobs created per split when memory limit reached."
+    )]
+    pub job_splits: u8,
+
+    #[arg(
+        long = "split_depth",
+        value_name = "U8",
+        default_value_t = 5,
+        help = "Maximum times a job can be recursively split (increases exponentially; failed jobs saved to 'logs.csv')."
+    )]
+    pub job_split_depth: u8,
 }
