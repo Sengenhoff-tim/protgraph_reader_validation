@@ -32,16 +32,35 @@ pub struct Cli {
     #[arg(short = 'z', long = "zip", value_name = "U8", help = "Zip output")]
     pub zip: bool,
 
+    // functional arguments
     #[arg(
         short = 'v',
         long = "max_vars",
         value_name = "U8",
         default_value_t = 3,
-        help = "Maximum variants per peptide (default: 3; higher values increase computation)"
+        help = "Maximum variants per peptide. Defaults to 3. Increases results exponentially"
     )]
     pub max_vars: u8,
 
-    // memory/prcoessing constraints
+    #[arg(
+        short = 'l',
+        long = "lower_bound",
+        value_name = "I64",
+        default_value_t = 600,
+        help = "Global minimum peptide weight in Da. Defaults to 600."
+    )]
+    pub lower_bound: i64,
+
+    #[arg(
+        short = 'u',
+        long = "upper_bound",
+        value_name = "I64",
+        default_value_t = 4000,
+        help = "Global maximum peptide weight in Da. Defaults to 4000."
+    )]
+    pub upper_bound: i64,
+
+    // memory/processing constraints
     #[arg(
         long = "avail_processors",
         value_name = "U64",

@@ -10,15 +10,18 @@ pub struct Interval {
 }
 
 impl Interval {
-    #[inline]
     pub fn overlaps(&self, other: &Interval) -> bool {
         self.lower <= other.upper && other.lower <= self.upper
     }
 
-    #[inline]
     pub fn merge_with(&mut self, other: &Interval) {
         self.lower = self.lower.min(other.lower);
         self.upper = self.upper.max(other.upper);
+    }
+
+    pub fn clamp(&mut self, min: i64, max: i64) {
+        self.lower = self.lower.clamp(min, max);
+        self.upper = self.upper.clamp(min, max);
     }
 }
 
