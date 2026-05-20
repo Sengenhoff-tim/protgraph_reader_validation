@@ -115,10 +115,10 @@ process READERRUST {
     bpcsr_to_fasta \\
         --graphs ${database_bpcsr} \\
         --queries ${rust_queries_csv} \\
-        --max_vars 3 \\
+        --max_vars 2 \\
         -o ./${prefix}_output \\
         --avail_processors ${p_count} \\
-        -i 100 \\
+        --interval_bin_length 100 \\
         --avail_memory 8 \\
         --hash_bits 3 \\
         -z

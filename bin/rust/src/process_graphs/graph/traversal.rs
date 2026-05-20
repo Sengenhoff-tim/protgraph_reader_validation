@@ -36,8 +36,6 @@ impl TraversalData {
                 continue;
             }
 
-            //let (edge_begin, edge_end) = edge_ranges[node_idx];
-
             let current_states = take(&mut traversal_state.states_at_node[node_idx]);
 
             for state_id in current_states {
@@ -46,6 +44,7 @@ impl TraversalData {
                 let var = state.var;
 
                 for edge_idx in edge_begin..edge_end {
+
                     let new_var = var + self.variant_count[edge_idx];
 
                     if new_var > max_vars {
