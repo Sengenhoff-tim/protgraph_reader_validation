@@ -11,11 +11,10 @@ pub fn dedup_bin_files(
     outdir: &Path,
     zip: bool,
     channel_bin_input_size: usize,
-    channel_output_entry_size: usize
+    channel_output_entry_size: usize,
 ) -> Result<()> {
     let (tx_in, rx_in) = bounded::<Vec<BinEntry>>(channel_bin_input_size);
-    let (tx_out, rx_out) =
-        bounded::<(String, Vec<BinEntryMeta>)>(channel_output_entry_size);
+    let (tx_out, rx_out) = bounded::<(String, Vec<BinEntryMeta>)>(channel_output_entry_size);
 
     let writer_handle = spawn_writers(rx_out, outdir, zip);
 

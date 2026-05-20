@@ -44,7 +44,6 @@ impl TraversalData {
                 let var = state.var;
 
                 for edge_idx in edge_begin..edge_end {
-
                     let new_var = var + self.variant_count[edge_idx];
 
                     if new_var > max_vars {

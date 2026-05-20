@@ -24,10 +24,10 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     let cli = &config.cli;
 
     let ch_graph_in_size = cli.ch_proc_in_size.unwrap_or(2);
-    let ch_bin_out_size = cli.ch_proc_out_size.unwrap_or(cli.avail_processors*2);
+    let ch_bin_out_size = cli.ch_proc_out_size.unwrap_or(cli.avail_processors * 2);
 
     let out_dir = &cli.outdir_path;
-    
+
     create_dir_all(out_dir).with_context(|| format!("failed to create {}", out_dir.display()))?;
 
     // set up log writer
@@ -41,12 +41,8 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     let reader_handle = thread::spawn(|| spawn_protein_graph_reader(reader_for_graph, tx_graph));
 
     // spawn tmp file writer
-    let (tx_entry, bin_writer_handle) = spawn_writer_manager(
-        out_dir,
-        cli.hash_bits,
-        cli.max_handles,
-        ch_bin_out_size
-    )?;
+    let (tx_entry, bin_writer_handle) =
+        spawn_writer_manager(out_dir, cli.hash_bits, cli.max_handles, ch_bin_out_size)?;
 
     //process graphs
     let intervals = Arc::new(config.intervals);

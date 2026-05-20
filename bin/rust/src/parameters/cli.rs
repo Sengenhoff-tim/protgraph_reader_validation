@@ -93,15 +93,31 @@ pub struct Cli {
     #[arg(short = 'z', long = "zip", value_name = "U8", help = "Zip output")]
     pub zip: bool,
 
-    #[arg(long = "ch_proc_in_size", value_name = "U64", help = "Amount of graphs read to memory concurrently during graph processing. Defaults to 2.")]
+    #[arg(
+        long = "ch_proc_in_size",
+        value_name = "U64",
+        help = "Amount of graphs read to memory concurrently during graph processing. Defaults to 2."
+    )]
     pub ch_proc_in_size: Option<usize>,
 
-    #[arg(long = "ch_proc_out_size", value_name = "U64", help = "Amount of sequence-meta pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2.")]
+    #[arg(
+        long = "ch_proc_out_size",
+        value_name = "U64",
+        help = "Amount of sequence-meta pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2."
+    )]
     pub ch_proc_out_size: Option<usize>,
 
-    #[arg(long = "ch_dedup_in_size", value_name = "U64", help = "Amount of binary graph processing output files loaded to memory concurrently during deduplication. Defaults to 2.")]
+    #[arg(
+        long = "ch_dedup_in_size",
+        value_name = "U64",
+        help = "Amount of binary graph processing output files loaded to memory concurrently during deduplication. Defaults to 2."
+    )]
     pub ch_dedup_in_size: Option<usize>,
 
-    #[arg(long = "ch_dedup_out_size", value_name = "U64", help = "Amount of sequence-metadata pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2.")]
+    #[arg(
+        long = "ch_dedup_out_size",
+        value_name = "U64",
+        help = "Amount of sequence-metadata pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2."
+    )]
     pub ch_dedup_out_size: Option<usize>,
 }
