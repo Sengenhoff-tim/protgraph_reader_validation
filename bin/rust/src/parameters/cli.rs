@@ -67,7 +67,7 @@ pub struct Cli {
     #[arg(
         long = "ch_proc_out_size",
         value_name = "U64",
-        help = "Amount of sequence-meta pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2."
+        help = "Amount of sequence-meta pairs loaded to memory concurrently during graph processing. Defaults to avail_cpus*2."
     )]
     pub ch_proc_out_size: Option<usize>,
 
