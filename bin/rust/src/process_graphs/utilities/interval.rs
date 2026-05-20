@@ -28,22 +28,24 @@ impl Interval {
 impl Interval {
     /// Splits one interval to n roughly equal intervals. Used for job rescheduling.
     pub fn split_to_n(&self, n: u8) -> Vec<Interval> {
-        let mut out = Vec::with_capacity(n as usize);
-
         if n == 0 {
-            return out;
+            return Vec::new();
         }
 
         let size = self.upper - self.lower + 1;
-        let step = (size + n as i64 - 1) / n as i64; // ceil division
 
+        // Cannot split further
+        if size <= 1 || n == 1 {
+            return vec![*self];
+        }
+
+        let step = (size + n as i64 - 1) / n as i64;
+
+        let mut out = Vec::with_capacity(n as usize);
         let mut start = self.lower;
 
         while start <= self.upper {
-            let mut end = start + step - 1;
-            if end > self.upper {
-                end = self.upper;
-            }
+            let end = (start + step - 1).min(self.upper);
 
             out.push(Interval {
                 lower: start,
