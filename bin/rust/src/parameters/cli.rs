@@ -26,7 +26,7 @@ pub struct Cli {
         value_name = "PATH",
         help = "Output directory"
     )]
-    pub output_path: PathBuf,
+    pub outdir_path: PathBuf,
 
     #[arg(
         short = 'v',
@@ -38,16 +38,14 @@ pub struct Cli {
     pub max_vars: u8,
 
     #[arg(
-        short = 'p',
         long = "avail_processors",
-        value_name = "U8",
+        value_name = "U64",
         default_value_t = 1,
         help = "Number of available processors"
     )]
-    pub avail_processors: u8,
+    pub avail_processors: usize,
 
     #[arg(
-        short = 'b',
         long = "hash_bits",
         value_name = "U8",
         help = "Creates 2^hash_bits intermediate bins as files. Only used when deduplicating. Gives rough control over intermediate file size. Defaults to auto-tuned value based on max file handles."
@@ -55,7 +53,6 @@ pub struct Cli {
     pub hash_bits: Option<u8>,
 
     #[arg(
-        short = 'h',
         long = "max_file_handles",
         value_name = "U8",
         help = "Maximum file handles for intermediate files. Only used when deduplicating. With Unix, defaults to RLIMIT_NOFILE, clamped between 64 and 8192. With Windows, defaults to 2048"
@@ -63,7 +60,6 @@ pub struct Cli {
     pub max_handles: Option<u32>,
 
     #[arg(
-        short = 'm',
         long = "avail_memory",
         value_name = "U8",
         help = "Available memory in GB. When estimated usage exceeds this, jobs are split and rescheduled. Splitting should be avoided. See documentation for details."
@@ -71,7 +67,6 @@ pub struct Cli {
     pub avail_memory: u8,
 
     #[arg(
-        short = 'i',
         long = "interval_bin_length",
         value_name = "U16",
         default_value_t = 100,
@@ -80,7 +75,6 @@ pub struct Cli {
     pub interval_bin_size: u16,
 
     #[arg(
-        short = 's',
         long = "job_splits",
         value_name = "U8",
         default_value_t = 4,
@@ -89,7 +83,6 @@ pub struct Cli {
     pub job_splits: u8,
 
     #[arg(
-        short = 'd',
         long = "split_depth",
         value_name = "U8",
         default_value_t = 5,
@@ -99,4 +92,16 @@ pub struct Cli {
 
     #[arg(short = 'z', long = "zip", value_name = "U8", help = "Zip output")]
     pub zip: bool,
+
+    #[arg(long = "ch_proc_in_size", value_name = "U64", help = "Amount of graphs read to memory concurrently during graph processing. Defaults to 2.")]
+    pub ch_proc_in_size: Option<usize>,
+
+    #[arg(long = "ch_proc_out_size", value_name = "U64", help = "Amount of sequence-meta pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2.")]
+    pub ch_proc_out_size: Option<usize>,
+
+    #[arg(long = "ch_dedup_in_size", value_name = "U64", help = "Amount of binary graph processing output files loaded to memory concurrently during deduplication. Defaults to 2.")]
+    pub ch_dedup_in_size: Option<usize>,
+
+    #[arg(long = "ch_dedup_out_size", value_name = "U64", help = "Amount of sequence-metadata pairs loaded to memory concurrently during deduplication. Defaults to avail_cpus*2.")]
+    pub ch_dedup_out_size: Option<usize>,
 }

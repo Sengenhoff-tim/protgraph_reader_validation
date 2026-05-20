@@ -17,31 +17,35 @@ use crate::{parameters::Config, process_graphs::threading::graph_workers::Worker
 
 const GB: u64 = 1024 * 1024 * 1024;
 const LOG_FILE_NAME: &str = "logs.csv";
-const CHANNEL_CAPACITY_GRAPH_IN: usize = 2;
 
 /// main graph processing workflow
 pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
     // create output directory
     let cli = &config.cli;
-    let out_dir = &cli.output_path;
+
+    let ch_graph_in_size = cli.ch_proc_in_size.unwrap_or(2);
+    let ch_bin_out_size = cli.ch_proc_out_size.unwrap_or(cli.avail_processors*2);
+
+    let out_dir = &cli.outdir_path;
+    
     create_dir_all(out_dir).with_context(|| format!("failed to create {}", out_dir.display()))?;
 
     // set up log writer
-    let logs = File::create(cli.output_path.join(LOG_FILE_NAME))?;
+    let logs = File::create(out_dir.join(LOG_FILE_NAME))?;
     let log_writer = BufWriter::new(logs);
 
     // setup graph reader
     let graph = File::open(&cli.graph_input_path)?;
     let reader_for_graph = BufReader::new(graph);
-    let (tx_graph, rx_graph) = bounded::<Result<ProteinGraph>>(CHANNEL_CAPACITY_GRAPH_IN);
+    let (tx_graph, rx_graph) = bounded::<Result<ProteinGraph>>(ch_graph_in_size);
     let reader_handle = thread::spawn(|| spawn_protein_graph_reader(reader_for_graph, tx_graph));
 
     // spawn tmp file writer
     let (tx_entry, bin_writer_handle) = spawn_writer_manager(
-        &cli.output_path,
+        out_dir,
         cli.hash_bits,
         cli.max_handles,
-        cli.avail_processors,
+        ch_bin_out_size
     )?;
 
     //process graphs
@@ -58,7 +62,7 @@ pub fn process_graphs(config: Config) -> Result<Vec<PathBuf>> {
         rx_graph,
         tx_entry,
         intervals,
-        cli.avail_processors as usize,
+        cli.avail_processors,
         log_writer,
         worker_args,
     )?;
