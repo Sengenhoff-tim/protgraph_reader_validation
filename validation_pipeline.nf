@@ -81,7 +81,7 @@ process BUILDGRAPH {
 //-ft VARIANT -ft SIGNAL -ft INIT_MET -ft CONFLICT -ft VAR_SEQ -ft PEPTIDE -ft PROPEP -ft CHAIN
 
 process READERRUST {
-    container 'protgraph_reader_rust'
+    container 'bpcsr_to_fasta:latest'
     input:
     tuple(
         path(accessions_csv), 
