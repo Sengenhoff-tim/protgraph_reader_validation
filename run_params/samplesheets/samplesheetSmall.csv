@@ -1,0 +1,2 @@
+input_file,query_file,max_vars,run_prefix
+run_params/entries/entrySmall.csv,run_params/queries/querySmall.csv,3,small

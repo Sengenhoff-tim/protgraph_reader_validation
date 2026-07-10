@@ -1,2 +1,2 @@
-input_file,query_file,max_vars,run_prefix
-/home/tim/Documents/BA/protgraph_reader_validation/entries15.csv,run_params/queries/query.csv,3,15
+input_file,query_file,max_vars,max_cleavages,run_prefix
+run_params/entries/entries15.csv,run_params/queries/query.csv,3,3,15

@@ -1,10 +1,12 @@
 /.nextflow
 /.nextflow.log*
 results/
+results_dedub/
 work/
-/target/
+bin/rust/target/
 Cargo.lock
 __pycache__/
 *.py[cod]
 *$py.class
 .vscode/
+.claude
