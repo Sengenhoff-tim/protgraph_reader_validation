@@ -18,7 +18,7 @@ The second pipeline compares peptide generation between a **UniProt**-sourced gr
 ## Requirements
 
 - [Nextflow](https://www.nextflow.io/) (DSL2)
-- Docker (or Singularity/Apptainer)
+- Docker
 - Perl — used by the uncontainerized `FILTERCLEAVAGES` step
 - Python 3 with the `requests` package — used by the uncontainerized
   `BUILDINPUT` step:
@@ -52,9 +52,8 @@ docker build -t fasta-builder-rust -f bin/fasta_builder_rust/Dockerfile bin/fast
 > built elsewhere may crash with an illegal instruction error.
 >
 > **`sp-embl-builder`** and **`fasta-builder-rust`** clone their source
-> directly from GitHub during the build (no pinned commit/tag), so building
-> requires network access, and rebuilding at a later date could pick up
-> different source code than originally tested.
+> directly from GitHub during the build (no pinned commit/tag). This is
+> intentional for validation.
 
 ## Network requirements
 
@@ -99,8 +98,7 @@ accessions.csv,queries.csv,2,3,run1
 nextflow run main.nf --samplesheet samplesheet.csv -profile docker
 ```
 
-`-profile docker` enables
-container execution — without it, the `container` directives are ignored and
+`-profile docker` is required. Without it, the `container` directives are ignored and
 containerized processes will attempt to run natively instead.
 
 ## Output
