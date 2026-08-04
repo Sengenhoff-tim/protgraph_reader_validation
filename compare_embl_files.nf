@@ -1,10 +1,14 @@
 include { BUILDINPUT } from './modules.nf'
-include { BUILD_SYN_INPUT } from './modules.nf'
+include { BUILD_SYN_INPUT_EBI } from './modules.nf'
+include { BUILD_SYN_INPUT_UNIPROT } from './modules.nf'
 include { BUILDGRAPH as BUILDGRAPH }  from './modules.nf'
-include { BUILDGRAPH as BUILDGRAPH_SYN } from './modules.nf'
+include { BUILDGRAPH as BUILDGRAPH_SYN_EBI } from './modules.nf'
+include { BUILDGRAPH as BUILDGRAPH_SYN_UNIPROT } from './modules.nf'
 include { READERRUST } from './modules.nf'
-include { READERRUST as READERRUST_SYN } from './modules.nf'
-include { DIFF } from './modules.nf'
+include { READERRUST as READERRUST_SYN_EBI } from './modules.nf'
+include { READERRUST as READERRUST_SYN_UNIPROT } from './modules.nf'
+include { DIFF as DIFF_SYN_CANON } from './modules.nf'
+include { DIFF as DIFF_SYN_SYN } from './modules.nf'
 
 
 workflow compare_embl_files {
@@ -28,20 +32,31 @@ workflow compare_embl_files {
 
     BUILDINPUT(runs_ch)
 
-    BUILD_SYN_INPUT(BUILDINPUT.out)
+    BUILD_SYN_INPUT_EBI(BUILDINPUT.out)
+
+    BUILD_SYN_INPUT_UNIPROT(BUILDINPUT.out)
 
     // uniprot branch
     uniprot_graph = BUILDGRAPH(BUILDINPUT.out)
     READERRUST(uniprot_graph)
 
-    // syn-embl branch
-    syn_graph = BUILDGRAPH_SYN(BUILD_SYN_INPUT.out)
-    READERRUST_SYN(syn_graph)
+    // syn-EBI branch
+    syn_graph_ebi = BUILDGRAPH_SYN_EBI(BUILD_SYN_INPUT_EBI.out)
+    READERRUST_SYN_EBI(syn_graph_ebi)
+
+    // syn-UniProt branch
+    syn_graph_uniprot = BUILDGRAPH_SYN_UNIPROT(BUILD_SYN_INPUT_UNIPROT.out)
+    READERRUST_SYN_UNIPROT(syn_graph_uniprot)
 
     ch_uniprot = READERRUST.out.map { _bpcsr, _queries, _limits, fasta, _max_cl, prefix -> tuple(prefix, fasta) }
-    ch_syn     = READERRUST_SYN.out.map { _bpcsr, _queries, _limits, fasta, _max_cl, prefix -> tuple(prefix, fasta) }
+    ch_syn_uniprot     = READERRUST_SYN_UNIPROT.out.map { _bpcsr, _queries, _limits, fasta, _max_cl, prefix -> tuple(prefix, fasta) }
+    ch_syn_ebi     = READERRUST_SYN_EBI.out.map { _bpcsr, _queries, _limits, fasta, _max_cl, prefix -> tuple(prefix, fasta) }
 
-    ch_diff = ch_uniprot.join(ch_syn)
+    ch_diff_syn_canon = ch_uniprot.join(ch_syn_uniprot)
 
-    DIFF(ch_diff)
+    ch_diff_syn_syn = ch_syn_uniprot.join(ch_syn_ebi)
+
+    DIFF_SYN_CANON(ch_diff_syn_canon, "SYNC-CANON")
+
+    DIFF_SYN_SYN(ch_diff_syn_syn, "SYN_EBI-UNIPROT")
 }
