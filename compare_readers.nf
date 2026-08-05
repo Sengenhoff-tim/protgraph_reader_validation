@@ -39,6 +39,6 @@ workflow compare_bpcsr_readers {
 
     FILTERCLEAVAGES(DEDUPCPP.out)
 
-    DIFF(FILTERCLEAVAGES.out)
+    DIFF(FILTERCLEAVAGES.out, "CPP-RUST")
 }
 

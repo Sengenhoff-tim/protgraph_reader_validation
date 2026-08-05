@@ -36,8 +36,8 @@ process BUILDINPUT {
     """
 }
 
-process BUILD_SYN_INPUT {
-    // synthetic embl builder is called with uniprot only, as other sources can not be validated against uniprot.
+process BUILD_SYN_INPUT_EBI {
+    // synthetic embl builder is called with uniprot variants from EBI only
     container 'sp-embl-builder'
     input:
     tuple(
@@ -65,13 +65,49 @@ process BUILD_SYN_INPUT {
 
     script:
     """
-    touch empty_variants.txt
     sp_embl_builder \
     --accessions ${accessions_csv} \
-    --variants empty_variants.txt \
+    --ebi-variants true \
+    --uniprot-variants false \
     --source-type uniprot \
     --output ${prefix}_syn_uniprot.txt
+    """
+}
 
+process BUILD_SYN_INPUT_UNIPROT {
+    // synthetic embl builder is called with uniprot only
+    container 'sp-embl-builder'
+    input:
+    tuple(
+        path(accessions_csv),
+        path(queries_csv),
+        path(rust_queries_csv),
+        path(cpp_limits_csv),
+        path(uniprot_txt),
+        val(max_vars),
+        val(max_cleavages),
+        val(prefix)
+    )
+
+    output:
+    tuple(
+        path(accessions_csv),
+        path(queries_csv),
+        path(rust_queries_csv),
+        path(cpp_limits_csv),
+        path("${prefix}_syn_uniprot.txt"),
+        val(max_vars),
+        val(max_cleavages),
+        val(prefix)
+    )
+
+    script:
+    """
+    sp_embl_builder \
+    --accessions ${accessions_csv} \
+    --ebi-variants false \
+    --uniprot-variants true \
+    --output ${prefix}_syn_uniprot.txt
     """
 }
 
@@ -189,7 +225,7 @@ process READERCPP {
         ${p_count} \\
         ${prefix}_cpp_out.fasta \\
         ${cpp_limits_csv}
-    """
+    """ 
 }
 
 process DEDUPCPP {
@@ -257,19 +293,20 @@ process DIFF {
 
     input:
     tuple val(prefix), path(in1, stageAs: '1_peptides.fasta'), path(in2, stageAs: '2_peptides.fasta')
+    val(run)
 
     output:
     tuple(
-        path("sorted_${in1}"),
-        path("sorted_${in2}"),
-        path("${prefix}_diff.txt"),
+        path("sorted_${run}_${in1}"),
+        path("sorted_${run}_${in2}"),
+        path("${run}_${prefix}_diff.txt"),
     )
 
     script:
     """
-    grep -v '^>' ${in1} | sort > sorted_${in1}
-    grep -v '^>' ${in2} | sort > sorted_${in2}
+    grep -v '^>' ${in1} | sort > sorted_${run}_${in1}
+    grep -v '^>' ${in2} | sort > sorted_${run}_${in2}
 
-    diff sorted_${in1} sorted_${in2} > ${prefix}_diff.txt || true
+    diff sorted_${in1} sorted_${in2} > ${run}_${prefix}_diff.txt || true
     """
 }

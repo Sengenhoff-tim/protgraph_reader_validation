@@ -67,7 +67,7 @@ internet access is required for every run, not just initial setup.
 
 Notes:
 - `BUILDINPUT` fetches UniProt entries in batches (100 accessions per request
-  by default) and has **no automatic retry** — a transient network error or
+  by default) and has **no automatic retry**, a transient network error or
   UniProt rate-limiting will fail the run. Re-run with `-resume` once the
   issue clears.
 - Docker containers must also be permitted outbound network access, since
@@ -95,11 +95,12 @@ accessions.csv,queries.csv,2,3,run1
 ## Usage
 
 ```bash
-nextflow run main.nf --samplesheet samplesheet.csv -profile docker
+nextflow run main.nf --samplesheet samplesheet.csv --profile docker
 ```
 
-`-profile docker` is required. Without it, the `container` directives are ignored and
-containerized processes will attempt to run natively instead.
+Functional example samplesheets can be found in "run_params/samplesheets"
+
+`--profile docker` is required.
 
 ## Output
 
