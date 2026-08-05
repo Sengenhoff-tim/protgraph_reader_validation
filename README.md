@@ -18,7 +18,7 @@ The second pipeline compares peptide generation between a **UniProt**-sourced gr
 ## Requirements
 
 - [Nextflow](https://www.nextflow.io/) (DSL2)
-- Docker (or Singularity/Apptainer)
+- Docker
 - Perl — used by the uncontainerized `FILTERCLEAVAGES` step
 - Python 3 with the `requests` package — used by the uncontainerized
   `BUILDINPUT` step:
@@ -52,9 +52,8 @@ docker build -t fasta-builder-rust -f bin/fasta_builder_rust/Dockerfile bin/fast
 > built elsewhere may crash with an illegal instruction error.
 >
 > **`sp-embl-builder`** and **`fasta-builder-rust`** clone their source
-> directly from GitHub during the build (no pinned commit/tag), so building
-> requires network access, and rebuilding at a later date could pick up
-> different source code than originally tested.
+> directly from GitHub during the build (no pinned commit/tag). This is
+> intentional for validation.
 
 ## Network requirements
 
@@ -108,3 +107,15 @@ Functional example samplesheets can be found in "run_params/samplesheets"
 Results are published to `results/run_<prefix>/`, containing:
 - `sorted_<file1>`, `sorted_<file2>` — the sorted, header-stripped peptide lists that were compared
 - `<prefix>_diff.txt` — the diff between the two peptide sets (empty if identical)
+
+## Third-party licenses
+
+This pipeline uses the following third-party software, each released under
+a 3-clause BSD license:
+
+- [ProtGraph](https://github.com/mpc-bioinformatics/ProtGraph),
+  Copyright 2021, Ruhr University Bochum, Medizinisches Proteom-Center
+- [ProGFASTAGen](https://github.com/mpc-bioinformatics/ProGFASTAGen),
+  Copyright 2024, Ruhr University Bochum, Medizinisches Proteom-Center
+
+See each repository for full license terms.
