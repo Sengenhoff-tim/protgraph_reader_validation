@@ -2,7 +2,7 @@ FROM rust:latest AS builder
 
 WORKDIR /app
 
-RUN git clone https://github.com/Sengenhoff-tim/protgraph_bpcsr_reader .
+RUN git clone --branch dev-dfs https://github.com/Sengenhoff-tim/protgraph_bpcsr_reader .
 
 RUN cargo build --release
 

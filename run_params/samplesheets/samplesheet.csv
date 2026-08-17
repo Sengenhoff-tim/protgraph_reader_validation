@@ -1,2 +1,2 @@
-input_file,query_file,max_vars,run_prefix
-run_params/entries/entries1-2.csv,run_params/queries/query.csv,3,1-2
+input_file,query_file,max_vars,max_cleavages,run_prefix
+run_params/entries/entryP53.csv,run_params/queries/query.csv,3,3,P53

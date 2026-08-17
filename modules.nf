@@ -190,8 +190,8 @@ process READERRUST {
         --interval_bin_length 1000 \\
         --job_splits 1000 \\
         --split_depth 1\\
-        --avail_memory 2 \\
-        --hash_bits 3
+        --avail_memory 1 \\
+        --hash_bits 9
     """
 }
 
@@ -217,7 +217,7 @@ process READERCPP {
     )
 
     script:
-    p_count = Runtime.runtime.availableProcessors().div(2)
+    p_count = Runtime.runtime.availableProcessors().div(2) // see progfastagen
     """
     protgraphtraverseintvarlimitter \\
         ${database_bpcsr} \\

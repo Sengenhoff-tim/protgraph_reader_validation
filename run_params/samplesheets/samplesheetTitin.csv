@@ -1,2 +1,0 @@
-input_file,query_file,max_vars,run_prefix
-run_params/entries/entryTitin.csv,run_params/queries/query.csv,2,titin
